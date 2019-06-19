@@ -88,6 +88,24 @@ discussed in section #1, with the exception of:
   - TMPDIR and AFL_KEEP_ASSEMBLY, since no temporary assembly files are
     created.
 
+Special flags for afl-clang-fast/afl-clang-fast++ are:
+
+  - Setting LAF_SPLIT_SWITCHES will transform multi byte comparisons to
+    single byte comparisons in switch statements.
+
+  - Setting LAF_TRANSFORM_COMPARES will substitute comparison functions
+    (strcmp, memcmp, strncmp, strcasecmp, strncasecmp) with single byte
+    comparisons.
+
+  - Setting LAF_SPLIT_COMPARES will transform multi byte comparisons in
+    conditions to single byte comparisons.
+
+  - Setting LAF_SPLIT_COMPARES_BITW will set the maximum bit width used
+    for split compares (when enabled).
+
+  - Setting AFL_SAT_COUNTS will change the instrumentation such
+    that instead of wrapping counters saturating counters are used.
+
 Note that AFL_INST_RATIO will behave a bit differently than for afl-gcc,
 because functions are *not* instrumented unconditionally - so low values
 will have a more striking effect. For this tool, 0 is not a valid choice.

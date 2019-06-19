@@ -95,6 +95,9 @@ bool AFLCoverage::runOnModule(Module &M) {
 
   }
 
+  char* saturating_counters_str = getenv("AFL_SAT_COUNTS");
+  bool enable_saturating_counters = saturating_counters_str && '1' == *saturating_counters_str;
+
   /* Get globals for the SHM region and the previous location. Note that
      __afl_prev_loc is thread-local. */
 
@@ -166,7 +169,32 @@ bool AFLCoverage::runOnModule(Module &M) {
 
       LoadInst *Counter = IRB.CreateLoad(MapPtrIdx);
       Counter->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
-      Value *Incr = IRB.CreateAdd(Counter, ConstantInt::get(Int8Ty, 1));
+
+      Value *Incr;
+      if (enable_saturating_counters) {
+          /* hexcoder: Realize a saturating increment of 'Counter'.
+           * Once the saturating counter reaches its maximum value, it stays there,
+           *
+           * Instead of
+           * Counter + 1 -> Counter
+           * we inject now this
+           * Counter + 1 -> {Counter, OverflowFlag}
+           * Counter - OverflowFlag -> Counter
+           */
+          CallInst *AddOv = IRB.CreateBinaryIntrinsic(Intrinsic::uadd_with_overflow,
+                             Counter, ConstantInt::get(Int8Ty, 1));
+          AddOv->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
+          Value *SumWithOverflowBit = AddOv;
+          Incr = IRB.CreateSub(
+                           IRB.CreateExtractValue(SumWithOverflowBit, 0),  /* sum */
+                           IRB.CreateZExt( /* convert from one bit type to 8 bits type */
+                              IRB.CreateExtractValue(SumWithOverflowBit, 1) /* overflow */
+                              , Int8Ty));
+      } else {
+          /* standard AFL behavior: wrapping counters */
+          Incr = IRB.CreateAdd(Counter, ConstantInt::get(Int8Ty, 1));
+      }
+
       IRB.CreateStore(Incr, MapPtrIdx)
           ->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
 
