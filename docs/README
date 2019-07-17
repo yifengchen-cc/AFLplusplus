@@ -1,3 +1,16 @@
+
+# DEPRECATED BRANCH
+
+this branch was made to test the difference in coverage if the MAP counters
+would saturated at 255 instead of wrapping around.
+
+Result: 7% speed loss and loss of coverage.
+
+for historical reasons we keep this branch here
+
+
+## old README follows
+
 ============================
 american fuzzy lop plus plus
 ============================
