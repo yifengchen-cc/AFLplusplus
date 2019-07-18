@@ -47,6 +47,9 @@
 #include <termios.h>
 #include <dlfcn.h>
 #include <sched.h>
+#include <stdbool.h>
+#include <stdarg.h>
+#include <limits.h>
 
 #include <sys/wait.h>
 #include <sys/time.h>
@@ -173,7 +176,8 @@ enum {
   /* 02 */ COE,                       /* Cut-Off Exponential schedule     */
   /* 03 */ LIN,                       /* Linear schedule                  */
   /* 04 */ QUAD,                      /* Quadratic schedule               */
-  /* 05 */ EXPLOIT                    /* AFL's exploitation-based const.  */
+  /* 05 */ EXPLOIT,                   /* AFL's exploitation-based const.  */
+  /* 06 */ FAIR                       /* FairFuzz schedule                */
 };
 
 char *power_names[] = {
@@ -182,7 +186,8 @@ char *power_names[] = {
   "coe",
   "lin",
   "quad",
-  "exploit"
+  "exploit",
+  "fair"
 };
 
 static u8 schedule = EXPLORE;         /* Power schedule (default: EXPLORE)*/
@@ -364,6 +369,24 @@ static struct extra_data* a_extras;   /* Automatically selected extras    */
 static u32 a_extras_cnt;              /* Total number of tokens available */
 
 static u8* (*post_handler)(u8* buf, u32* len);
+
+/* FairFuzz */
+
+static u64 hit_bits[MAP_SIZE];        /* @RB@ Hits to every basic block transition */
+u8* fuzzed_branches;                  /* @RB@ which branches have been done */
+static u32 MAX_RARE_BRANCHES = 256;
+static int rare_branch_exp = 4;       /* @RB@ less than 2^rare_branch_exp is rare*/
+static int * blacklist; 
+static int blacklist_size = 1024;
+static int blacklist_pos;
+static u32 rb_fuzzing = 0;            /* @RB@ non-zero branch index + 1 if fuzzing is being done with that branch constant*/
+static u32 total_branch_tries = 0;
+static u32 successful_branch_tries = 0;
+static u8 shadow_mode = 0;            /* @RB@ shadow AFL run -- do not modify queue or branch hits             */
+static int prev_cycle_wo_new = 0;
+static int cycle_wo_new = 0;
+static int bootstrap = 0;             /* @RB@ */
+static u8 skip_deterministic_bootstrap = 0;
 
 /* Interesting values, as per config.h */
 
@@ -628,6 +651,7 @@ static void trim_py(char** ret, size_t* retlen) {
 
 #endif /* USE_PYTHON */
 
+/* BEGIN MOpt */
 
 int select_algorithm(void) {
 
@@ -640,7 +664,6 @@ int select_algorithm(void) {
   }
 
   double sele = ((double)(random()%10000)*0.0001);
-  //SAYF("select : %f\n",sele);
   j_puppet = 0;
   for (i_puppet = 0; i_puppet < operator_num; i_puppet++) {
       if (unlikely(i_puppet == 0)) {
@@ -658,6 +681,72 @@ int select_algorithm(void) {
   return i_puppet;
 }
 
+/* END MOpt */
+
+/* BEGIN FairFuzz */
+
+/* create a new branch mask of the specified size */
+
+static inline u8* alloc_branch_mask(u32 size) {
+
+  u8* mem;
+
+  if (!size) return NULL;
+  mem = ck_alloc_nozero(size);
+
+  memset(mem, 7, size);
+
+  mem[size - 1] = 4;
+
+  return mem;
+
+}
+
+// @LFB@ functions for logging
+void tee2(char const *fmt, ...) { 
+    static FILE *f = NULL;
+    if (f == NULL) {
+      u8 * fn = alloc_printf("%s/min-branch-fuzzing.log", out_dir);
+      f= fopen(fn, "w");
+      ck_free(fn);
+    }
+    va_list ap;
+    va_start(ap, fmt);
+    vprintf(fmt, ap);
+    va_end(ap);
+    va_start(ap, fmt);
+    vfprintf(f, fmt, ap);
+    va_end(ap);
+}
+
+void fileonly (char const *fmt, ...) { 
+    static FILE *f = NULL;
+    if (f == NULL) {
+      u8 * fn = alloc_printf("%s/min-branch-fuzzing.log", out_dir);
+      f= fopen(fn, "w");
+      ck_free(fn);
+    }
+    va_list ap;
+    va_start(ap, fmt);
+    vfprintf(f, fmt, ap);
+    va_end(ap);
+}
+
+
+/* at the end of execution, dump the number of inputs hitting
+   each branch to log */
+static void dump_to_logs() {
+  s32 branch_hit_fd = -1;
+  u8* fn = alloc_printf("%s/branch-hits.bin", out_dir);
+  unlink(fn); /* Ignore errors */
+  branch_hit_fd = open(fn, O_CREAT | O_WRONLY | O_TRUNC, 0600);
+  if (branch_hit_fd < 0) PFATAL("Unable to create '%s'", fn);
+  ck_write(branch_hit_fd, hit_bits, sizeof(u64) * MAP_SIZE, fn);
+  ck_free(fn);
+  close(branch_hit_fd);
+}
+
+/* END Fairfuzz */
 
 /* Get unix time in milliseconds */
 
@@ -1103,6 +1192,244 @@ static void mark_as_redundant(struct queue_entry* q, u8 state) {
 
 }
 
+/* BEGIN FairFuzz */
+
+/* True if branch_ids contains branch_id*/
+static int contains_id(int branch_id, int* branch_ids) {
+  for (int i = 0; branch_ids[i] != -1; i++) {
+    if (branch_ids[i] == branch_id) return 1;
+  }
+  return 0; 
+}
+
+/* you'll have to free the return pointer. */
+static int* get_lowest_hit_branch_ids() {
+  int * rare_branch_ids = ck_alloc(sizeof(int) * MAX_RARE_BRANCHES);
+  int lowest_hob = INT_MAX;
+  int ret_list_size = 0;
+
+  for (int i = 0; (i < MAP_SIZE) && (ret_list_size < MAX_RARE_BRANCHES - 1); i++) {
+    // ignore unseen branches. sparse array -> unlikely 
+    if (unlikely(hit_bits[i] > 0)) {
+      if (contains_id(i, blacklist)) continue;
+      unsigned int long cur_hits = hit_bits[i];
+      int highest_order_bit = 0;
+      while(cur_hits >>=1)
+          highest_order_bit++;
+      lowest_hob = highest_order_bit < lowest_hob ? highest_order_bit : lowest_hob;
+      if (highest_order_bit < rare_branch_exp) {
+        // if we are an order of magnitude smaller, prioritize the
+        // rarer branches
+        if (highest_order_bit < rare_branch_exp - 1) {
+          rare_branch_exp = highest_order_bit + 1;
+          // everything else that came before had way more hits
+          // than this one, so remove from list
+          ret_list_size = 0;
+        }
+        rare_branch_ids[ret_list_size] = i;
+        ret_list_size++;
+      }
+
+    }
+  }
+
+  if (ret_list_size == 0) {
+    if (lowest_hob != INT_MAX) {
+      rare_branch_exp = lowest_hob + 1;
+      ck_free(rare_branch_ids);
+      return get_lowest_hit_branch_ids();
+    }
+  }
+
+  rare_branch_ids[ret_list_size] = -1;
+  return rare_branch_ids;
+
+}
+
+/* return 0 if current trace bits hits branch with id branch_id,
+  0 otherwise */
+static int hits_branch(int branch_id) {
+  return (trace_bits[branch_id] != 0);
+}
+
+// checks if hits a rare branch with mini trace bits
+// returns NULL if the trace bits does not hit a rare branch
+// else returns a list of all the rare branches hit
+// by the mini trace bits, in decreasing order of rarity
+static u32 * is_rb_hit_mini(u8* trace_bits_mini) {
+  int * rarest_branches = get_lowest_hit_branch_ids();
+  u32 * branch_ids = ck_alloc(sizeof(u32) * MAX_RARE_BRANCHES);
+  u32 * branch_cts = ck_alloc(sizeof(u32) * MAX_RARE_BRANCHES);
+  int min_hit_index = 0;
+
+  for (int i = 0; i < MAP_SIZE ; i ++) {
+      if (unlikely (trace_bits_mini[i >> 3]  & (1 <<(i & 7)) )) {
+        int cur_index = i;
+        int is_rare = contains_id(cur_index, rarest_branches);
+        if (is_rare) {
+          // at loop initialization, set min_branch_hit properly
+          if (!min_hit_index) {
+            branch_cts[min_hit_index] = hit_bits[cur_index];
+            branch_ids[min_hit_index] = cur_index + 1;
+          }
+          // in general just check if we're a smaller branch 
+          // than the previously found min
+          int j;
+          for (j = 0 ; j < min_hit_index; j++) {
+            if (hit_bits[cur_index] <= branch_cts[j]) {
+              memmove(branch_cts + j + 1, branch_cts + j, min_hit_index -j);
+              memmove(branch_ids + j + 1, branch_ids + j, min_hit_index -j);
+              branch_cts[j] = hit_bits[cur_index];
+              branch_ids[j] = cur_index + 1;
+            }
+          }
+          // append at end
+          if (j == min_hit_index) {
+            branch_cts[j] = hit_bits[cur_index];
+            // + 1 so we can distinguish 0 from other cases
+            branch_ids[j] = cur_index + 1;
+
+          }
+          // this is only incremented when is_rare holds, which should
+          // only happen a max of MAX_RARE_BRANCHES -1 times -- the last
+          // time we will never reenter so this is always < MAX_RARE_BRANCHES
+          // at the top of the if statement
+          min_hit_index++;
+        }
+      }
+
+  }
+  ck_free(branch_cts);
+  ck_free(rarest_branches);
+  if (min_hit_index == 0) {
+      ck_free(branch_ids);
+      branch_ids = NULL;
+  } else {
+    // 0 terminate the array
+    branch_ids[min_hit_index] = 0;
+  }
+  return branch_ids;
+
+}
+
+/* get a random modifiable position (i.e. where branch_mask & mod_type) 
+   for both overwriting and removal we want to make sure we are overwriting
+   or removing parts within the branch mask
+*/
+// assumes map_len is len, not len + 1. be careful. 
+static u32 get_random_modifiable_posn(u32 num_to_modify, u8 mod_type, u32 map_len, u8* branch_mask, u32 * position_map) {
+  u32 ret = 0xffffffff;
+  u32 position_map_len = 0;
+  int prev_start_of_1_block = -1;
+  int in_0_block = 1;
+  for (int i = 0; i < map_len; i ++) {
+    if (branch_mask[i] & mod_type) {
+      // if the last thing we saw was a zero, set
+      // to start of 1 block
+      if (in_0_block) {
+        prev_start_of_1_block = i;
+        in_0_block = 0;
+      }
+    } else {
+      // for the first 0 we see (unless the eff_map starts with zeroes)
+      // we know the last index was the last 1 in the line
+      if ((!in_0_block) &&(prev_start_of_1_block != -1)) {
+        int num_bytes = MAX(num_to_modify/8, 1);
+        for (int j = prev_start_of_1_block; j < i-num_bytes + 1; j++) {
+            // I hate this ++ within operator stuff
+            position_map[position_map_len++] = j;
+        }
+
+      }
+      in_0_block = 1;
+    }
+  }
+
+  // if we ended not in a 0 block, add it in too 
+  if (!in_0_block) {
+    u32 num_bytes = MAX(num_to_modify/8, 1);
+    for (u32 j = prev_start_of_1_block; j < map_len-num_bytes + 1; j++) {
+        // I hate this ++ within operator stuff
+        position_map[position_map_len++] = j;
+    }
+  }
+
+  if (position_map_len) {
+    u32 random_pos = UR(position_map_len);
+    if (num_to_modify >= 8)
+      ret =  position_map[random_pos];
+    else // I think num_to_modify can only ever be 1 if it's less than 8. otherwise need trickier stuff. 
+      ret = position_map[random_pos] + UR(8);
+  } 
+
+  return ret;
+  
+}
+
+// just need a random element of branch_mask which & with 4
+// assumes map_len is len, not len + 1. be careful. 
+static u32 get_random_insert_posn(u32 map_len, u8* branch_mask, u32 * position_map) {
+
+  u32 position_map_len = 0;
+  u32 ret = map_len;
+
+  for (u32 i = 0; i <= map_len; i++) {
+    if (branch_mask[i] & 4)
+      position_map[position_map_len++] = i;
+  }
+
+  if (position_map_len) {
+    ret = position_map[UR(position_map_len)];
+  }
+
+  return ret;
+}
+
+
+// when resuming re-increment hit bits
+static void init_hit_bits() {
+  s32 branch_hit_fd = -1;
+
+  ACTF("Attempting to init hit bits...");
+  u8* fn = alloc_printf("%s/branch-hits.bin", out_dir);
+
+  branch_hit_fd = open(fn, O_RDONLY);
+  if (branch_hit_fd < 0) PFATAL("Unable to open '%s'", fn);
+
+  ck_read(branch_hit_fd, hit_bits, sizeof(u64) * MAP_SIZE, fn);
+
+  close(branch_hit_fd);
+  OKF("Init'ed hit_bits.");
+}
+
+// @RB@ moved up here so we can use it in add_to_queue 
+/* Compact trace bytes into a smaller bitmap. We effectively just drop the
+   count information here. This is called only sporadically, for some
+   new paths. */
+
+static void minimize_bits(u8* dst, u8* src) {
+
+  u32 i = 0;
+
+  while (i < MAP_SIZE) {
+
+    if (*(src++)) dst[i >> 3] |= 1 << (i & 7);
+    i++;
+
+  }
+
+}
+
+/* increment hit bits by 1 for every element of trace_bits that has been hit.
+   effectively counts that one input has hit each element of trace_bits */
+static void increment_hit_bits() {
+  for (int i = 0; i < MAP_SIZE; i++) {
+    if ((trace_bits[i] > 0) && (hit_bits[i] < ULONG_MAX))
+      hit_bits[i]++;
+  }
+}
+
+/* END FairFuzz */
 
 /* Append new test case to the queue. */
 
@@ -1529,24 +1856,9 @@ static inline void classify_counts(u32* mem) {
 
 #endif /* ^__x86_64__ */
 
-
 /* Compact trace bytes into a smaller bitmap. We effectively just drop the
    count information here. This is called only sporadically, for some
    new paths. */
-
-static void minimize_bits(u8* dst, u8* src) {
-
-  u32 i = 0;
-
-  while (i < MAP_SIZE) {
-
-    if (*(src++)) dst[i >> 3] |= 1 << (i & 7);
-    i++;
-
-  }
-
-}
-
 
 /* Find first power of two greater or equal to val (assuming val under
    2^63). */
@@ -1600,7 +1912,7 @@ static void update_bitmap_score(struct queue_entry* q) {
          /* Looks like we're going to win. Decrease ref count for the
             previous winner, discard its trace_bits[] if necessary. */
 
-         if (!--top_rated[i]->tc_ref) {
+         if (schedule != FAIR && !--top_rated[i]->tc_ref) {
            ck_free(top_rated[i]->trace_mini);
            top_rated[i]->trace_mini = 0;
          }
@@ -3035,6 +3347,17 @@ static void perform_dry_run(char** argv) {
     close(fd);
 
     res = calibrate_case(argv, q, use_mem, 0, 1);
+    
+    if (schedule == FAIR) {
+    // @RB@ added these for every queue entry
+    // free what was added in add_to_queue
+      ck_free(q->trace_mini);
+      ck_free(q->fuzzed_branches);
+      q->trace_mini = ck_alloc(MAP_SIZE >> 3);
+      minimize_bits(q->trace_mini, trace_bits);
+      q->fuzzed_branches = ck_alloc(MAP_SIZE >>3);
+    }
+    
     ck_free(use_mem);
 
     if (stop_soon) return;
@@ -3429,6 +3752,8 @@ static void write_crash_readme(void) {
 
 static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
 
+  if (len == 0) return 0;
+
   u8  *fn = "";
   u8  hnb;
   s32 fd;
@@ -3450,6 +3775,8 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
 
     /* Keep only if there are new bits in the map, add to queue for
        future fuzzing, etc. */
+
+    if (schedule == FAIR) increment_hit_bits();
 
     if (!(hnb = has_new_bits(virgin_bits))) {
       if (crash_mode) total_crashes++;
@@ -5057,6 +5384,13 @@ EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
 
   }
 
+  if (schedule == FAIR && rb_fuzzing) {
+    total_branch_tries++;
+    if (hits_branch(rb_fuzzing - 1)) {
+      successful_branch_tries++;
+    }
+  }
+
   /* This handles FAULT_ERROR for us: */
 
   queued_discovered += save_if_interesting(argv, out_buf, len, fault);
@@ -5224,6 +5558,10 @@ static u32 calculate_score(struct queue_entry* q) {
 
     case QUAD:
       factor = q->fuzz_level * q->fuzz_level / (fuzz == 0 ? 1 : fuzz);
+      break;
+    
+    case FAIR:
+      // XXX TODO
       break;
 
     default:
@@ -5457,7 +5795,7 @@ static u8 fuzz_one_original(char** argv) {
   if (queue_cur->depth > 1) return 1;
 
 #else
-
+ if (schedule != FAIR) { 
   if (pending_favored) {
 
     /* If we have any favored, non-fuzzed new arrivals in the queue,
@@ -5484,9 +5822,78 @@ static u8 fuzz_one_original(char** argv) {
     }
 
   }
+ }
 
 #endif /* ^IGNORE_FINDS */
 
+  if (schedule == FAIR) {
+    /* RB Vars*/
+    u8 * branch_mask = 0;
+    u8 * orig_branch_mask = 0;
+    u8 rb_skip_deterministic = 0;
+    u8 skip_simple_bitflip = 0;
+    u8 * virgin_virgin_bits = 0;
+    u32 * position_map = NULL;
+    u32 orig_queued_with_cov = queued_with_cov;
+
+    if (skip_deterministic) {
+      rb_skip_deterministic = 1;
+      skip_simple_bitflip = 1;
+    }
+ 
+    /* select inputs which hit rare branches */
+    skip_deterministic_bootstrap = 0;
+    u32 * min_branch_hits = is_rb_hit_mini(queue_cur->trace_mini);
+
+    if (min_branch_hits == NULL) {
+      // not a rare hit. don't fuzz.
+      return 1;
+    } else { 
+      int ii;
+      for (ii = 0; min_branch_hits[ii] != 0; ii++) {
+        rb_fuzzing = min_branch_hits[ii];
+        if (rb_fuzzing) {
+          int byte_offset = (rb_fuzzing - 1) >> 3;
+          int bit_offset = (rb_fuzzing - 1) & 7;
+
+          // skip deterministic if we have fuzzed this min branch
+          if (queue_cur->fuzzed_branches[byte_offset] & (1 << (bit_offset))) {
+            // let's try the next one
+            continue;
+          } else {
+            for (int k = 0; k < MAP_SIZE >> 3; k ++) {
+              if (queue_cur->fuzzed_branches[k] != 0) {
+                skip_simple_bitflip = 1;
+                break;
+              }
+            }
+            // indicate we have fuzzed this branch id
+            queue_cur->fuzzed_branches[byte_offset] |= (1 << (bit_offset)); 
+            // chose minimum
+            break;
+          }
+        } else break; 
+      }
+      // if we got to the end of min_branch_hits...
+      // it's either because we fuzzed all the things in min_branch_hits
+      // or because there was nothing. If there was nothing, 
+      // min_branch_hits[0] should be 0 
+      if (!rb_fuzzing || (min_branch_hits[ii] == 0)) {
+        rb_fuzzing = min_branch_hits[0];
+        if (!rb_fuzzing) {
+          return 1;
+        }
+        skip_simple_bitflip = 1;
+        rb_skip_deterministic = 1;
+      }
+      ck_free(min_branch_hits);
+
+      if (!skip_simple_bitflip) {
+        cycle_wo_new = 0; 
+      }
+    }
+
+  } 
   if (not_on_tty) {
     ACTF("Fuzzing test case #%u (%u total, %llu uniq crashes found)...",
          current_entry, queued_paths, unique_crashes);
@@ -7375,19 +7782,42 @@ static u8 pilot_fuzzing(char** argv) {
 
 	orig_perf = perf_score = calculate_score(queue_cur);
 
+	if (schedule == FAIR) {
+          if (rb_fuzzing) {
+            virgin_virgin_bits = ck_alloc(MAP_SIZE);
+            memcpy(virgin_virgin_bits, virgin_bits, MAP_SIZE);
+          }
+          // @RB@: allocate the branch mask
+          branch_mask = ck_alloc(len + 1);
+          orig_branch_mask = ck_alloc(len + 1);
+          // this will be used to store the valid modifiable positions
+          // in the havoc stage. malloc'ing once to reduce overhead. 
+          position_map = ck_alloc(sizeof(u32) * (len+1));
+        }
+
 	/* Skip right away if -d is given, if we have done deterministic fuzzing on
 	   this entry ourselves (was_fuzzed), or if it has gone through deterministic
 	   testing in earlier, resumed runs (passed_det). */
 
-	if (skip_deterministic || queue_cur->was_fuzzed || queue_cur->passed_det)
+	if (skip_deterministic_bootstrap || (schedule != FAIR && (skip_deterministic || queue_cur->was_fuzzed || queue_cur->passed_det))
 		goto havoc_stage;
 
 	/* Skip deterministic fuzzing if exec path checksum puts this out of scope
 	   for this master instance. */
 
-	if (master_max && (queue_cur->exec_cksum % master_max) != master_id - 1)
+	if (master_max && (queue_cur->exec_cksum % master_max) != master_id - 1) {
+	    if (schedule != FAIR)
 		goto havoc_stage;
-
+            else {
+                rb_skip_deterministic=1;
+                skip_simple_bitflip=1;
+            }
+        }
+        
+        if (skip_simple_bitflip) {
+          new_hit_cnt = queued_paths + unique_crashes;
+          goto skip_simple_bitflip;
+        }
 
 	cur_ms_lv = get_cur_time();
 	if (!(key_puppet == 0 && ((cur_ms_lv - last_path_time < limit_time_puppet) ||
@@ -7503,11 +7933,17 @@ static u8 pilot_fuzzing(char** argv) {
 			}
 
 		}
+		if (schedule != FAIR)
+		  goto bitflip;
 
+bitflip:
 		new_hit_cnt = queued_paths + unique_crashes;
 
 		stage_finds[STAGE_FLIP1] += new_hit_cnt - orig_hit_cnt;
 		stage_cycles[STAGE_FLIP1] += stage_max;
+
+                if (schedule == FAIR)
+                  goto skip_simple_bitflip;
 
 		/* Two walking bits. */
 
@@ -7573,9 +8009,14 @@ static u8 pilot_fuzzing(char** argv) {
 		stage_finds[STAGE_FLIP4] += new_hit_cnt - orig_hit_cnt;
 		stage_cycles[STAGE_FLIP4] += stage_max;
 
+		if (schedule != FAIR) goto skip_skip;
 
+skip_simple_bitflip:	// FairFuzz
+                successful_branch_tries = 0;
+                total_branch_tries = 0;
 
-		
+skip_skip:
+
 		/* Effector map setup. These macros calculate:
 
 		   EFF_APOS      - position of a particular file offset in the map.
@@ -7617,6 +8058,9 @@ static u8 pilot_fuzzing(char** argv) {
 			out_buf[stage_cur] ^= 0xFF;
 
 			if (common_fuzz_stuff(argv, out_buf, len)) goto abandon_entry;
+
+                        if (schedule == FAIR && rb_fuzzing && hits_branch(rb_fuzzing - 1))
+                          branch_mask[stage_cur] = 1;
 
 			/* We also use this stage to pull off a simple trick: we identify
 			   bytes that seem to have no effect on the current execution path
@@ -7672,7 +8116,7 @@ static u8 pilot_fuzzing(char** argv) {
 		stage_cycles[STAGE_FLIP8] += stage_max;
 
 
-
+// XXX BUG TODO --- I got until here with the patch
 
 
 		/* Two walking bytes. */
@@ -11271,6 +11715,7 @@ static void usage(u8* argv0) {
        "  -T text       - text banner to show on the screen\n"
        "  -M / -S id    - distributed mode (see parallel_fuzzing.txt)\n"
        "  -C            - crash exploration mode (the peruvian rabbit thing)\n"
+       "  -B bitmap.txt - read a specific bitmap\n"
        "  -e ext        - File extension for the temporarily generated test case\n\n"
 
 #ifdef USE_PYTHON
@@ -11943,6 +12388,8 @@ int main(int argc, char** argv) {
           schedule = QUAD;
         } else if (!stricmp(optarg, "explore") || !stricmp(optarg, "default") || !stricmp(optarg, "normal") || !stricmp(optarg, "afl")) {
           schedule = EXPLORE;
+        } else if (!stricmp(optarg, "fair")) {
+          schedule = FAIR;
         } else {
           FATAL("Unknown -p power schedule");
         }
@@ -12275,6 +12722,7 @@ int main(int argc, char** argv) {
     case LIN:     OKF ("Using linear power schedule (LIN)"); break;
     case QUAD:    OKF ("Using quadratic power schedule (QUAD)"); break;
     case EXPLORE: OKF ("Using exploration-based constant power schedule (EXPLORE)"); break;
+    case FAIR:    OKF ("Using FairFuzz power schedule (FAIR)"); break;
     default : FATAL ("Unknown power schedule"); break;
   }
 
