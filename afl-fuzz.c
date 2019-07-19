@@ -169,6 +169,7 @@ EXP_ST u8  debug,                     /* Debug mode                       */
 EXP_ST u8  trim_for_branch;
 EXP_ST u32 rb_fuzzing,
            successful_branch_tries = 0,
+           total_branch_tries = 0,
            MAX_RARE_BRANCHES = 256;
 EXP_ST u64 hit_bits[MAP_SIZE];
 static int rare_branch_exp = 4;
@@ -3456,6 +3457,12 @@ static void increment_hit_bits() {
   }
 }
 
+/* -r option: return 0 if current trace bits hits branch with id branch_id,
+  0 otherwise */
+static int hits_branch(int branch_id){
+  return (trace_bits[branch_id] != 0);
+}
+
 
 /* Check if the result of an execve() during routine fuzzing is interesting,
    save or queue the input test case for further analysis if so. Returns 1 if
@@ -5526,12 +5533,6 @@ static int* get_lowest_hit_branch_ids() {
 
   rare_branch_ids[ret_list_size] = -1;
   return rare_branch_ids;
-}
-
-/* -r option: return 0 if current trace bits hits branch with id branch_id,
-  0 otherwise */
-static int hits_branch(int branch_id){
-  return (trace_bits[branch_id] != 0);
 }
 
 /* -r option: Trim for a particular branch. Possibly modified contents of
