@@ -5502,7 +5502,7 @@ static int* get_lowest_hit_branch_ids() {
   for (int i = 0; (i < MAP_SIZE) && (ret_list_size < MAX_RARE_BRANCHES - 1); i++) {
     // ignore unseen branches. sparse array -> unlikely 
     if (unlikely(hit_bits[i] > 0)) {
-      if (contains_id(i, blacklist)) continue;
+      if (blacklist != NULL && contains_id(i, blacklist)) continue;
       unsigned int long cur_hits = hit_bits[i];
       int highest_order_bit = 0;
       while(cur_hits >>=1)
