@@ -46,7 +46,7 @@
 
  */
 
-//#define BUILD_INLINE_INST
+#define BUILD_INLINE_INST
 
 #include "../config.h"
 #include "../debug.h"
@@ -111,7 +111,6 @@ static unsigned int ext_call_instrument(function *fun) {
 		if (R(100) >= inst_ratio) continue;
 
 		/* Make up cur_loc */
-
 		unsigned int rand_loc = R(MAP_SIZE);
 		tree cur_loc = build_int_cst(uint64_type_node, rand_loc);
 
@@ -249,7 +248,7 @@ static unsigned int inline_instrument(function *fun) {
 		bentry = gsi_start_bb(bb);
 		gsi_insert_seq_before(&bentry, seq, GSI_SAME_STMT);
 
-		inst_blocks++;
+		//inst_blocks++;
 		finst_blocks++;
 	}
 

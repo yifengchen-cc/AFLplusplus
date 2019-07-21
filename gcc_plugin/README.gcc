@@ -7,7 +7,10 @@ Fast GCC-based instrumentation for afl-fuzz
 
 
 !!!
-!!! gcc_plugin is not stable yet and can crash when compiling
+!!! the plugin is currently a horrible mess of inefficiency.
+!!! dont'use - just fix!
+!!!  => inline instrumentation has to work!
+!!!  => and only instrument at the beginning of a basic block
 !!!
 
 
