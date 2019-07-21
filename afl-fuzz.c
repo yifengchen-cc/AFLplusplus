@@ -12568,6 +12568,9 @@ int main(int argc, char** argv) {
 
   if (optind == argc || !in_dir || !out_dir) usage(argv[0]);
 
+  if (trim_for_branch && limit_time_sig)
+    FATAL("-r rare_trimming option does currently not work with -L MOpt mode");
+
   if (fixed_seed)
     OKF("Running with fixed seed: %u", (u32)init_seed);
   srandom((u32)init_seed);
