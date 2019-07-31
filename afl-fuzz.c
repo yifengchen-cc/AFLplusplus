@@ -33,8 +33,8 @@
 #include "debug.h"
 #include "alloc-inl.h"
 #include "hash.h"
-#include "sharedmem.h"
 #include "afl-common.h"
+#include "xxhash.h"
 
 #include <stdio.h>
 #include <unistd.h>
@@ -79,6 +79,9 @@
 #else
 #  define EXP_ST static
 #endif /* ^AFL_LIB */
+
+static s32 piper[2];
+
 
 /* MOpt:
    Lots of globals, but mostly for the status UI and other things where it
@@ -143,6 +146,8 @@ double x_now[swarm_num][operator_num],
 double period_pilot_tmp = 5000.0;
 int key_lv = 0;
 
+extern s32 piper[2];
+
 EXP_ST u8 *in_dir,                    /* Input directory with test cases  */
           *out_file,                  /* File to fuzz, if any             */
           *out_dir,                   /* Working & output directory       */
@@ -187,6 +192,9 @@ char *power_names[] = {
   "exploit"
 };
 
+static u64 total_len;
+static u64 last_cksum;
+
 static u8 schedule = EXPLORE;         /* Power schedule (default: EXPLORE)*/
 static u8 havoc_max_mult = HAVOC_MAX_MULT;
 
@@ -228,13 +236,11 @@ static s32 forksrv_pid,               /* PID of the fork server           */
            child_pid = -1,            /* PID of the fuzzed program        */
            out_dir_fd = -1;           /* FD of the lock file              */
 
-       u8* trace_bits;                /* SHM with instrumentation bitmap  */
+//       u8* trace_bits;                /* SHM with instrumentation bitmap  */
 
 EXP_ST u8  virgin_bits[MAP_SIZE],     /* Regions yet untouched by fuzzing */
            virgin_tmout[MAP_SIZE],    /* Bits we haven't seen in tmouts   */
            virgin_crash[MAP_SIZE];    /* Bits we haven't seen in crashes  */
-
-static u8  var_bytes[MAP_SIZE];       /* Bytes that appear to be variable */
 
 static volatile u8 stop_soon,         /* Ctrl-C pressed?                  */
                    clear_screen = 1,  /* Window resized?                  */
@@ -330,13 +336,15 @@ struct queue_entry {
       fs_redundant;                   /* Marked as redundant in the fs?   */
 
   u32 bitmap_size,                    /* Number of bits set in bitmap     */
-      fuzz_level,                     /* Number of fuzzing iterations     */
-      exec_cksum;                     /* Checksum of the execution trace  */
+      fuzz_level;                     /* Number of fuzzing iterations     */
+  u64 exec_cksum;                     /* Checksum of the execution trace  */
 
   u64 exec_us,                        /* Execution time (us)              */
       handicap,                       /* Number of queue cycles behind    */
       n_fuzz,                         /* Number of fuzz, does not overflow */
       depth;                          /* Path depth                       */
+
+  u64 total_len;
 
   u8* trace_mini;                     /* Trace bytes, if kept             */
   u32 tc_ref;                         /* Trace bytes ref count            */
@@ -1202,85 +1210,6 @@ EXP_ST void read_bitmap(u8* fname) {
 
 }
 
-
-/* Check if the current execution path brings anything new to the table.
-   Update virgin bits to reflect the finds. Returns 1 if the only change is
-   the hit-count for a particular tuple; 2 if there are new tuples seen. 
-   Updates the map, so subsequent calls will always return 0.
-
-   This function is called after every exec() on a fairly large buffer, so
-   it needs to be fast. We do this in 32-bit and 64-bit flavors. */
-
-static inline u8 has_new_bits(u8* virgin_map) {
-
-#ifdef __x86_64__
-
-  u64* current = (u64*)trace_bits;
-  u64* virgin  = (u64*)virgin_map;
-
-  u32  i = (MAP_SIZE >> 3);
-
-#else
-
-  u32* current = (u32*)trace_bits;
-  u32* virgin  = (u32*)virgin_map;
-
-  u32  i = (MAP_SIZE >> 2);
-
-#endif /* ^__x86_64__ */
-
-  u8   ret = 0;
-
-  while (i--) {
-
-    /* Optimize for (*current & *virgin) == 0 - i.e., no bits in current bitmap
-       that have not been already cleared from the virgin map - since this will
-       almost always be the case. */
-
-    if (unlikely(*current) && unlikely(*current & *virgin)) {
-
-      if (likely(ret < 2)) {
-
-        u8* cur = (u8*)current;
-        u8* vir = (u8*)virgin;
-
-        /* Looks like we have not found any new bytes yet; see if any non-zero
-           bytes in current[] are pristine in virgin[]. */
-
-#ifdef __x86_64__
-
-        if ((cur[0] && vir[0] == 0xff) || (cur[1] && vir[1] == 0xff) ||
-            (cur[2] && vir[2] == 0xff) || (cur[3] && vir[3] == 0xff) ||
-            (cur[4] && vir[4] == 0xff) || (cur[5] && vir[5] == 0xff) ||
-            (cur[6] && vir[6] == 0xff) || (cur[7] && vir[7] == 0xff)) ret = 2;
-        else ret = 1;
-
-#else
-
-        if ((cur[0] && vir[0] == 0xff) || (cur[1] && vir[1] == 0xff) ||
-            (cur[2] && vir[2] == 0xff) || (cur[3] && vir[3] == 0xff)) ret = 2;
-        else ret = 1;
-
-#endif /* ^__x86_64__ */
-
-      }
-
-      *virgin &= ~*current;
-
-    }
-
-    current++;
-    virgin++;
-
-  }
-
-  if (ret && virgin_map == virgin_bits) bitmap_changed = 1;
-
-  return ret;
-
-}
-
-
 /* Count the number of bits set in the provided bitmap. Used for the status
    screen several times every second, does not have to be fast. */
 
@@ -1315,33 +1244,6 @@ static u32 count_bits(u8* mem) {
 
 #define FF(_b)  (0xff << ((_b) << 3))
 
-/* Count the number of bytes set in the bitmap. Called fairly sporadically,
-   mostly to update the status screen or calibrate and examine confirmed
-   new paths. */
-
-static u32 count_bytes(u8* mem) {
-
-  u32* ptr = (u32*)mem;
-  u32  i   = (MAP_SIZE >> 2);
-  u32  ret = 0;
-
-  while (i--) {
-
-    u32 v = *(ptr++);
-
-    if (!v) continue;
-    if (v & FF(0)) ret++;
-    if (v & FF(1)) ret++;
-    if (v & FF(2)) ret++;
-    if (v & FF(3)) ret++;
-
-  }
-
-  return ret;
-
-}
-
-
 /* Count the number of non-255 bytes set in the bitmap. Used strictly for the
    status screen, several calls per second or so. */
 
@@ -1369,78 +1271,6 @@ static u32 count_non_255_bytes(u8* mem) {
   return ret;
 
 }
-
-
-/* Destructively simplify trace by eliminating hit count information
-   and replacing it with 0x80 or 0x01 depending on whether the tuple
-   is hit or not. Called on every new crash or timeout, should be
-   reasonably fast. */
-
-static const u8 simplify_lookup[256] = { 
-
-  [0]         = 1,
-  [1 ... 255] = 128
-
-};
-
-#ifdef __x86_64__
-
-static void simplify_trace(u64* mem) {
-
-  u32 i = MAP_SIZE >> 3;
-
-  while (i--) {
-
-    /* Optimize for sparse bitmaps. */
-
-    if (unlikely(*mem)) {
-
-      u8* mem8 = (u8*)mem;
-
-      mem8[0] = simplify_lookup[mem8[0]];
-      mem8[1] = simplify_lookup[mem8[1]];
-      mem8[2] = simplify_lookup[mem8[2]];
-      mem8[3] = simplify_lookup[mem8[3]];
-      mem8[4] = simplify_lookup[mem8[4]];
-      mem8[5] = simplify_lookup[mem8[5]];
-      mem8[6] = simplify_lookup[mem8[6]];
-      mem8[7] = simplify_lookup[mem8[7]];
-
-    } else *mem = 0x0101010101010101ULL;
-
-    mem++;
-
-  }
-
-}
-
-#else
-
-static void simplify_trace(u32* mem) {
-
-  u32 i = MAP_SIZE >> 2;
-
-  while (i--) {
-
-    /* Optimize for sparse bitmaps. */
-
-    if (unlikely(*mem)) {
-
-      u8* mem8 = (u8*)mem;
-
-      mem8[0] = simplify_lookup[mem8[0]];
-      mem8[1] = simplify_lookup[mem8[1]];
-      mem8[2] = simplify_lookup[mem8[2]];
-      mem8[3] = simplify_lookup[mem8[3]];
-
-    } else *mem = 0x01010101;
-
-    mem++;
-  }
-
-}
-
-#endif /* ^__x86_64__ */
 
 
 /* Destructively classify execution counts in a trace. This is used as a
@@ -1532,25 +1362,6 @@ static inline void classify_counts(u32* mem) {
 #endif /* ^__x86_64__ */
 
 
-/* Compact trace bytes into a smaller bitmap. We effectively just drop the
-   count information here. This is called only sporadically, for some
-   new paths. */
-
-static void minimize_bits(u8* dst, u8* src) {
-
-  u32 i = 0;
-
-  while (i < MAP_SIZE) {
-
-    if (*(src++)) dst[i >> 3] |= 1 << (i & 7);
-    i++;
-
-  }
-
-}
-
-
-
 /* Find first power of two greater or equal to val (assuming val under
    2^63). */
 
@@ -1561,72 +1372,6 @@ static u64 next_p2(u64 val) {
   return ret;
 
 } 
-
-
-/* When we bump into a new path, we call this to see if the path appears
-   more "favorable" than any of the existing ones. The purpose of the
-   "favorables" is to have a minimal set of paths that trigger all the bits
-   seen in the bitmap so far, and focus on fuzzing them at the expense of
-   the rest.
-
-   The first step of the process is to maintain a list of top_rated[] entries
-   for every byte in the bitmap. We win that slot if there is no previous
-   contender, or if the contender has a more favorable speed x size factor. */
-
-
-static void update_bitmap_score(struct queue_entry* q) {
-
-  u32 i;
-  u64 fav_factor = q->exec_us * q->len;
-  u64 fuzz_p2      = next_p2 (q->n_fuzz);
-
-  /* For every byte set in trace_bits[], see if there is a previous winner,
-     and how it compares to us. */
-
-  for (i = 0; i < MAP_SIZE; i++)
-
-    if (trace_bits[i]) {
-
-       if (top_rated[i]) {
-
-         /* Faster-executing or smaller test cases are favored. */
-         u64 top_rated_fuzz_p2    = next_p2 (top_rated[i]->n_fuzz);
-         u64 top_rated_fav_factor = top_rated[i]->exec_us * top_rated[i]->len;
-
-         if (fuzz_p2 > top_rated_fuzz_p2) {
-           continue;
-         } else if (fuzz_p2 == top_rated_fuzz_p2) {
-           if (fav_factor > top_rated_fav_factor)
-             continue;
-         }
-
-         if (fav_factor > top_rated[i]->exec_us * top_rated[i]->len) continue;
-
-         /* Looks like we're going to win. Decrease ref count for the
-            previous winner, discard its trace_bits[] if necessary. */
-
-         if (!--top_rated[i]->tc_ref) {
-           ck_free(top_rated[i]->trace_mini);
-           top_rated[i]->trace_mini = 0;
-         }
-
-       }
-
-       /* Insert ourselves as the new winner. */
-
-       top_rated[i] = q;
-       q->tc_ref++;
-
-       if (!q->trace_mini) {
-         q->trace_mini = ck_alloc(MAP_SIZE >> 3);
-         minimize_bits(q->trace_mini, trace_bits);
-       }
-
-       score_changed = 1;
-
-     }
-
-}
 
 
 /* The second part of the mechanism discussed above is a routine that
@@ -2313,9 +2058,9 @@ EXP_ST void init_forkserver(char** argv) {
     /* Umpf. On OpenBSD, the default fd limit for root users is set to
        soft 128. Let's try to fix that... */
 
-    if (!getrlimit(RLIMIT_NOFILE, &r) && r.rlim_cur < FORKSRV_FD + 2) {
+    if (!getrlimit(RLIMIT_NOFILE, &r) && r.rlim_cur < FORKSRV_FD + 4) {
 
-      r.rlim_cur = FORKSRV_FD + 2;
+      r.rlim_cur = FORKSRV_FD + 4;
       setrlimit(RLIMIT_NOFILE, &r); /* Ignore errors */
 
     }
@@ -2373,11 +2118,14 @@ EXP_ST void init_forkserver(char** argv) {
 
     if (dup2(ctl_pipe[0], FORKSRV_FD) < 0) PFATAL("dup2() failed");
     if (dup2(st_pipe[1], FORKSRV_FD + 1) < 0) PFATAL("dup2() failed");
+    if (dup2(piper[1], FORKSRV_FD + 3) < 0) PFATAL("dup2() failed");
 
     close(ctl_pipe[0]);
     close(ctl_pipe[1]);
     close(st_pipe[0]);
     close(st_pipe[1]);
+    close(piper[0]);
+    close(piper[1]);
 
     close(out_dir_fd);
     close(dev_null_fd);
@@ -2410,7 +2158,6 @@ EXP_ST void init_forkserver(char** argv) {
     /* Use a distinctive bitmap signature to tell the parent about execv()
        falling through. */
 
-    *(u32*)trace_bits = EXEC_FAIL_SIG;
     exit(0);
 
   }
@@ -2421,6 +2168,7 @@ EXP_ST void init_forkserver(char** argv) {
 
   close(ctl_pipe[0]);
   close(st_pipe[1]);
+  close(piper[1]);
 
   fsrv_ctl_fd = ctl_pipe[1];
   fsrv_st_fd  = st_pipe[0];
@@ -2524,9 +2272,6 @@ EXP_ST void init_forkserver(char** argv) {
 
   }
 
-  if (*(u32*)trace_bits == EXEC_FAIL_SIG)
-    FATAL("Unable to execute target application ('%s')", argv[0]);
-
   if (mem_limit && mem_limit < 500 && uses_asan) {
 
     SAYF("\n" cLRD "[-] " cRST
@@ -2586,7 +2331,7 @@ static u8 run_target(char** argv, u32 timeout) {
   static u32 prev_timed_out = 0;
 
   int status = 0;
-  u32 tb4;
+  u32 tb4 = 0;
 
   child_timed_out = 0;
 
@@ -2594,7 +2339,7 @@ static u8 run_target(char** argv, u32 timeout) {
      must prevent any earlier operations from venturing into that
      territory. */
 
-  memset(trace_bits, 0, MAP_SIZE);
+  //memset(trace_bits, 0, MAP_SIZE);
   MEM_BARRIER();
 
   /* If we're running in "dumb" mode, we can't rely on the fork server
@@ -2674,7 +2419,6 @@ static u8 run_target(char** argv, u32 timeout) {
       /* Use a distinctive bitmap value to tell the parent about execv()
          falling through. */
 
-      *(u32*)trace_bits = EXEC_FAIL_SIG;
       exit(0);
 
     }
@@ -2745,15 +2489,37 @@ static u8 run_target(char** argv, u32 timeout) {
 
   MEM_BARRIER();
 
-  tb4 = *(u32*)trace_bits;
-
-#ifdef __x86_64__
-  classify_counts((u64*)trace_bits);
-#else
-  classify_counts((u32*)trace_bits);
-#endif /* ^__x86_64__ */
-
   prev_timed_out = child_timed_out;
+
+    u8 data[140];
+    ssize_t len;
+    total_len = 0;
+    XXH64_state_t* state = XXH64_createState();
+    XXH64_reset(state, 0);
+    s64 foo = -1;
+    do {
+      u8 off = 0;
+      len = read(piper[0], data, sizeof(data));
+      if (len >= 8) {
+        if (memcmp(data, (char*)&foo, 8) == 0)
+          off = 8;
+        XXH64_update(state, data + off, len - off);
+        total_len += len - off;
+        if (1 == debug) {
+          printf("new %ld => %llu\n", len - off, total_len);
+          u64 x;
+          for (int i = off / 8; i < len / 8; i++) {
+            memcpy((char*)&x, data + i * 8, 8);
+            printf("%016llx ", x);
+          }
+          printf("\n");
+        }
+      }
+    } while (len > 0);
+    last_cksum = XXH64_digest(state);
+    if (debug == 1) printf("Digest: %016llx\n", last_cksum);
+    free((char*)state);
+
 
   /* Report outcome to caller. */
 
@@ -2853,8 +2619,6 @@ static void show_stats(void);
 static u8 calibrate_case(char** argv, struct queue_entry* q, u8* use_mem,
                          u32 handicap, u8 from_queue) {
 
-  static u8 first_trace[MAP_SIZE];
-
   u8  fault = 0, new_bits = 0, var_detected = 0,
       first_run = (q->exec_cksum == 0);
 
@@ -2883,13 +2647,14 @@ static u8 calibrate_case(char** argv, struct queue_entry* q, u8* use_mem,
   if (dumb_mode != 1 && !no_forkserver && !forksrv_pid)
     init_forkserver(argv);
 
-  if (q->exec_cksum) memcpy(first_trace, trace_bits, MAP_SIZE);
+  if (q->exec_cksum == 0) {
+    q->exec_cksum = last_cksum;
+    q->total_len = total_len;
+  }
 
   start_us = get_cur_time_us();
 
   for (stage_cur = 0; stage_cur < stage_max; stage_cur++) {
-
-    u32 cksum;
 
     if (!first_run && !(stage_cur % stats_update_freq)) show_stats();
 
@@ -2902,39 +2667,23 @@ static u8 calibrate_case(char** argv, struct queue_entry* q, u8* use_mem,
 
     if (stop_soon || fault != crash_mode) goto abort_calibration;
 
-    if (!dumb_mode && !stage_cur && !count_bytes(trace_bits)) {
+    if (!dumb_mode && !stage_cur && !total_len) {
       fault = FAULT_NOINST;
       goto abort_calibration;
     }
 
-    cksum = hash32(trace_bits, MAP_SIZE, HASH_CONST);
 
-    if (q->exec_cksum != cksum) {
-
-      u8 hnb = has_new_bits(virgin_bits);
-      if (hnb > new_bits) new_bits = hnb;
+    if (q->exec_cksum != last_cksum) {
 
       if (q->exec_cksum) {
 
-        u32 i;
-
-        for (i = 0; i < MAP_SIZE; i++) {
-
-          if (!var_bytes[i] && first_trace[i] != trace_bits[i]) {
-
-            var_bytes[i] = 1;
-            stage_max    = CAL_CYCLES_LONG;
-
-          }
-
-        }
-
+        stage_max    = CAL_CYCLES_LONG;
         var_detected = 1;
 
       } else {
 
-        q->exec_cksum = cksum;
-        memcpy(first_trace, trace_bits, MAP_SIZE);
+        q->exec_cksum = last_cksum;
+        q->total_len = total_len;
 
       }
 
@@ -2951,14 +2700,10 @@ static u8 calibrate_case(char** argv, struct queue_entry* q, u8* use_mem,
      This is used for fuzzing air time calculations in calculate_score(). */
 
   q->exec_us     = (stop_us - start_us) / stage_max;
-  q->bitmap_size = count_bytes(trace_bits);
   q->handicap    = handicap;
   q->cal_failed  = 0;
 
-  total_bitmap_size += q->bitmap_size;
   total_bitmap_entries++;
-
-  update_bitmap_score(q);
 
   /* If this case didn't result in new output from the instrumentation, tell
      parent. This is a non-critical problem, but something to warn the user
@@ -2968,16 +2713,9 @@ static u8 calibrate_case(char** argv, struct queue_entry* q, u8* use_mem,
 
 abort_calibration:
 
-  if (new_bits == 2 && !q->has_new_cov) {
-    q->has_new_cov = 1;
-    queued_with_cov++;
-  }
-
   /* Mark variable paths. */
 
   if (var_detected) {
-
-    var_byte_count = count_bytes(var_bytes);
 
     if (!q->var_behavior) {
       mark_as_variable(q);
@@ -2993,22 +2731,6 @@ abort_calibration:
   if (!first_run) show_stats();
 
   return fault;
-
-}
-
-
-/* Examine map coverage. Called once, for first test case. */
-
-static void check_map_coverage(void) {
-
-  u32 i;
-
-  if (count_bytes(trace_bits) < 100) return;
-
-  for (i = (1 << (MAP_SIZE_POW2 - 1)); i < MAP_SIZE; i++)
-    if (trace_bits[i]) return;
-
-  WARNF("Recompile binary with newer version of afl to improve coverage!");
 
 }
 
@@ -3054,8 +2776,6 @@ static void perform_dry_run(char** argv) {
     switch (res) {
 
       case FAULT_NONE:
-
-        if (q == queue) check_map_coverage();
 
         if (crash_mode) FATAL("Test case '%s' does *NOT* crash", fn);
 
@@ -3440,31 +3160,27 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
   if (len == 0) return 0;
 
   u8  *fn = "";
-  u8  hnb;
+  u8  hnb = 0;
   s32 fd;
-  u8  keeping = 0, res;
+  u8  keeping = 0, res, interesting = 1;
 
   /* Update path frequency. */
-  u32 cksum = hash32(trace_bits, MAP_SIZE, HASH_CONST);
-
   struct queue_entry* q = queue;
   while (q) {
-    if (q->exec_cksum == cksum)
+    if (q->exec_cksum == last_cksum) {
       q->n_fuzz = q->n_fuzz + 1;
-
+      interesting = 0;
+    }
     q = q->next;
-
   }
+  
+  if (interesting == 1)
+    keeping = 1;
 
   if (fault == crash_mode) {
 
     /* Keep only if there are new bits in the map, add to queue for
        future fuzzing, etc. */
-
-    if (!(hnb = has_new_bits(virgin_bits))) {
-      if (crash_mode) total_crashes++;
-      return 0;
-    }    
 
 #ifndef SIMPLE_FILES
 
@@ -3479,12 +3195,8 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
 
     add_to_queue(fn, len, 0);
 
-    if (hnb == 2) {
-      queue_top->has_new_cov = 1;
-      queued_with_cov++;
-    }
-
-    queue_top->exec_cksum = cksum;
+    queue_top->exec_cksum = last_cksum;
+    queue_top->total_len = total_len;
 
     /* Try to calibrate inline; this also calls update_bitmap_score() when
        successful. */
@@ -3515,18 +3227,6 @@ static u8 save_if_interesting(char** argv, void* mem, u32 len, u8 fault) {
       total_tmouts++;
 
       if (unique_hangs >= KEEP_UNIQUE_HANG) return keeping;
-
-      if (!dumb_mode) {
-
-#ifdef __x86_64__
-        simplify_trace((u64*)trace_bits);
-#else
-        simplify_trace((u32*)trace_bits);
-#endif /* ^__x86_64__ */
-
-        if (!has_new_bits(virgin_tmout)) return keeping;
-
-      }
 
       unique_tmouts++;
 
@@ -3580,18 +3280,6 @@ keep_as_crash:
 
       if (unique_crashes >= KEEP_UNIQUE_CRASH) return keeping;
 
-      if (!dumb_mode) {
-
-#ifdef __x86_64__
-        simplify_trace((u64*)trace_bits);
-#else
-        simplify_trace((u32*)trace_bits);
-#endif /* ^__x86_64__ */
-
-        if (!has_new_bits(virgin_crash)) return keeping;
-
-      }
-
       if (!unique_crashes) write_crash_readme();
 
 #ifndef SIMPLE_FILES
@@ -3618,6 +3306,9 @@ keep_as_crash:
     default: return keeping;
 
   }
+
+  if (interesting == 0)
+    return 0;
 
   /* If we're here, we apparently want to save the crash or hang
      test case, too. */
@@ -4799,8 +4490,6 @@ static void show_init_stats(void) {
 static u8 trim_case_python(char** argv, struct queue_entry* q, u8* in_buf) {
 
   static u8 tmp[64];
-  static u8 clean_trace[MAP_SIZE];
-
   u8  needs_write = 0, fault = 0;
   u32 trim_exec = 0;
   u32 orig_len = q->len;
@@ -4818,8 +4507,6 @@ static u8 trim_case_python(char** argv, struct queue_entry* q, u8* in_buf) {
   while(stage_cur < stage_max) {
     sprintf(tmp, "ptrim %s", DI(trim_exec));
 
-    u32 cksum;
-
     char* retbuf = NULL;
     size_t retlen = 0;
 
@@ -4835,9 +4522,7 @@ static u8 trim_case_python(char** argv, struct queue_entry* q, u8* in_buf) {
 
     if (stop_soon || fault == FAULT_ERROR) goto abort_trimming;
 
-    cksum = hash32(trace_bits, MAP_SIZE, HASH_CONST);
-
-    if (cksum == q->exec_cksum) {
+    if (last_cksum == q->exec_cksum) {
 
       q->len = retlen;
       memcpy(in_buf, retbuf, retlen);
@@ -4848,7 +4533,6 @@ static u8 trim_case_python(char** argv, struct queue_entry* q, u8* in_buf) {
       if (!needs_write) {
 
         needs_write = 1;
-        memcpy(clean_trace, trace_bits, MAP_SIZE);
 
       }
 
@@ -4888,9 +4572,6 @@ static u8 trim_case_python(char** argv, struct queue_entry* q, u8* in_buf) {
     ck_write(fd, in_buf, q->len, q->fname);
     close(fd);
 
-    memcpy(trace_bits, clean_trace, MAP_SIZE);
-    update_bitmap_score(q);
-
   }
 
 
@@ -4915,8 +4596,6 @@ static u8 trim_case(char** argv, struct queue_entry* q, u8* in_buf) {
 #endif
 
   static u8 tmp[64];
-  static u8 clean_trace[MAP_SIZE];
-
   u8  needs_write = 0, fault = 0;
   u32 trim_exec = 0;
   u32 remove_len;
@@ -4952,7 +4631,6 @@ static u8 trim_case(char** argv, struct queue_entry* q, u8* in_buf) {
     while (remove_pos < q->len) {
 
       u32 trim_avail = MIN(remove_len, q->len - remove_pos);
-      u32 cksum;
 
       write_with_gap(in_buf, q->len, remove_pos, trim_avail);
 
@@ -4963,14 +4641,12 @@ static u8 trim_case(char** argv, struct queue_entry* q, u8* in_buf) {
 
       /* Note that we don't keep track of crashes or hangs here; maybe TODO? */
 
-      cksum = hash32(trace_bits, MAP_SIZE, HASH_CONST);
-
       /* If the deletion had no impact on the trace, make it permanent. This
          isn't perfect for variable-path inputs, but we're just making a
          best-effort pass, so it's not a big deal if we end up with false
          negatives every now and then. */
 
-      if (cksum == q->exec_cksum) {
+      if (last_cksum == q->exec_cksum) {
 
         u32 move_tail = q->len - remove_pos - trim_avail;
 
@@ -4986,7 +4662,6 @@ static u8 trim_case(char** argv, struct queue_entry* q, u8* in_buf) {
         if (!needs_write) {
 
           needs_write = 1;
-          memcpy(clean_trace, trace_bits, MAP_SIZE);
 
         }
 
@@ -5018,9 +4693,6 @@ static u8 trim_case(char** argv, struct queue_entry* q, u8* in_buf) {
 
     ck_write(fd, in_buf, q->len, q->fname);
     close(fd);
-
-    memcpy(trace_bits, clean_trace, MAP_SIZE);
-    update_bitmap_score(q);
 
   }
 
@@ -5458,7 +5130,8 @@ static u8 fuzz_one_original(char** argv) {
   s32 len, fd, temp_len, i, j;
   u8  *in_buf, *out_buf, *orig_in, *ex_tmp, *eff_map = 0;
   u64 havoc_queued = 0,  orig_hit_cnt, new_hit_cnt;
-  u32 splice_cycle = 0, perf_score = 100, orig_perf, prev_cksum, eff_cnt = 1;
+  u32 splice_cycle = 0, perf_score = 100, orig_perf, eff_cnt = 1;
+  u64 prev_cksum = last_cksum;
 
   u8  ret_val = 1, doing_det = 0;
 
@@ -5682,9 +5355,7 @@ static u8 fuzz_one_original(char** argv) {
 
     if (!dumb_mode && (stage_cur & 7) == 7) {
 
-      u32 cksum = hash32(trace_bits, MAP_SIZE, HASH_CONST);
-
-      if (stage_cur == stage_max - 1 && cksum == prev_cksum) {
+      if (stage_cur == stage_max - 1 && last_cksum == prev_cksum) {
 
         /* If at end of file and we are still collecting a string, grab the
            final character and force output. */
@@ -5695,7 +5366,7 @@ static u8 fuzz_one_original(char** argv) {
         if (a_len >= MIN_AUTO_EXTRA && a_len <= MAX_AUTO_EXTRA)
           maybe_add_auto(a_collect, a_len);
 
-      } else if (cksum != prev_cksum) {
+      } else if (last_cksum != prev_cksum) {
 
         /* Otherwise, if the checksum has changed, see if we have something
            worthwhile queued up, and collect that if the answer is yes. */
@@ -5704,14 +5375,14 @@ static u8 fuzz_one_original(char** argv) {
           maybe_add_auto(a_collect, a_len);
 
         a_len = 0;
-        prev_cksum = cksum;
+        prev_cksum = last_cksum;
 
       }
 
       /* Continue collecting string, but only if the bit flip actually made
          any difference - we don't want no-op tokens. */
 
-      if (cksum != queue_cur->exec_cksum) {
+      if (last_cksum != queue_cur->exec_cksum) {
 
         if (a_len < MAX_AUTO_EXTRA) a_collect[a_len] = out_buf[stage_cur >> 3];        
         a_len++;
@@ -5832,17 +5503,10 @@ static u8 fuzz_one_original(char** argv) {
 
     if (!eff_map[EFF_APOS(stage_cur)]) {
 
-      u32 cksum;
-
       /* If in dumb mode or if the file is very short, just flag everything
          without wasting time on checksums. */
 
-      if (!dumb_mode && len >= EFF_MIN_LEN)
-        cksum = hash32(trace_bits, MAP_SIZE, HASH_CONST);
-      else
-        cksum = ~queue_cur->exec_cksum;
-
-      if (cksum != queue_cur->exec_cksum) {
+      if (last_cksum != queue_cur->exec_cksum) {
         eff_map[EFF_APOS(stage_cur)] = 1;
         eff_cnt++;
       }
@@ -7258,7 +6922,8 @@ static u8 pilot_fuzzing(char** argv) {
 	s32 len, fd, temp_len, i, j;
 	u8  *in_buf, *out_buf, *orig_in, *ex_tmp, *eff_map = 0;
 	u64 havoc_queued, orig_hit_cnt, new_hit_cnt, cur_ms_lv;
-	u32 splice_cycle = 0, perf_score = 100, orig_perf, prev_cksum, eff_cnt = 1;
+	u32 splice_cycle = 0, perf_score = 100, orig_perf, eff_cnt = 1;
+	u64 prev_cksum;
 	 
 	u8  ret_val = 1, doing_det = 0;
 
@@ -7479,9 +7144,7 @@ static u8 pilot_fuzzing(char** argv) {
 
 			if (!dumb_mode && (stage_cur & 7) == 7) {
 
-				u32 cksum = hash32(trace_bits, MAP_SIZE, HASH_CONST);
-
-				if (stage_cur == stage_max - 1 && cksum == prev_cksum) {
+				if (stage_cur == stage_max - 1 && last_cksum == prev_cksum) {
 
 					/* If at end of file and we are still collecting a string, grab the
 					   final character and force output. */
@@ -7493,7 +7156,7 @@ static u8 pilot_fuzzing(char** argv) {
 						maybe_add_auto(a_collect, a_len);
 
 				}
-				else if (cksum != prev_cksum) {
+				else if (last_cksum != prev_cksum) {
 
 					/* Otherwise, if the checksum has changed, see if we have something
 					   worthwhile queued up, and collect that if the answer is yes. */
@@ -7502,14 +7165,14 @@ static u8 pilot_fuzzing(char** argv) {
 						maybe_add_auto(a_collect, a_len);
 
 					a_len = 0;
-					prev_cksum = cksum;
+					prev_cksum = last_cksum;
 
 				}
 
 				/* Continue collecting string, but only if the bit flip actually made
 				   any difference - we don't want no-op tokens. */
 
-				if (cksum != queue_cur->exec_cksum) {
+				if (last_cksum != queue_cur->exec_cksum) {
 
 					if (a_len < MAX_AUTO_EXTRA) a_collect[a_len] = out_buf[stage_cur >> 3];
 					a_len++;
@@ -7641,17 +7304,10 @@ static u8 pilot_fuzzing(char** argv) {
 
 			if (!eff_map[EFF_APOS(stage_cur)]) {
 
-				u32 cksum;
-
 				/* If in dumb mode or if the file is very short, just flag everything
 				   without wasting time on checksums. */
 
-				if (!dumb_mode && len >= EFF_MIN_LEN)
-					cksum = hash32(trace_bits, MAP_SIZE, HASH_CONST);
-				else
-					cksum = ~queue_cur->exec_cksum;
-
-				if (cksum != queue_cur->exec_cksum) {
+				if (last_cksum != queue_cur->exec_cksum) {
 					eff_map[EFF_APOS(stage_cur)] = 1;
 					eff_cnt++;
 				}
@@ -9063,7 +8719,8 @@ static u8 core_fuzzing(char** argv) {
 		s32 len, fd, temp_len, j;
 		u8  *in_buf, *out_buf, *orig_in, *ex_tmp, *eff_map = 0;
 		u64 havoc_queued, orig_hit_cnt, new_hit_cnt, cur_ms_lv;
-		u32 splice_cycle = 0, perf_score = 100, orig_perf, prev_cksum, eff_cnt = 1;
+		u32 splice_cycle = 0, perf_score = 100, orig_perf, eff_cnt = 1;
+		u64 prev_cksum;
 		 
 		u8  ret_val = 1, doing_det = 0;
 
@@ -9279,9 +8936,7 @@ static u8 core_fuzzing(char** argv) {
 
 			if (!dumb_mode && (stage_cur & 7) == 7) {
 
-				u32 cksum = hash32(trace_bits, MAP_SIZE, HASH_CONST);
-
-				if (stage_cur == stage_max - 1 && cksum == prev_cksum) {
+				if (stage_cur == stage_max - 1 && last_cksum == prev_cksum) {
 
 					/* If at end of file and we are still collecting a string, grab the
 					   final character and force output. */
@@ -9293,7 +8948,7 @@ static u8 core_fuzzing(char** argv) {
 						maybe_add_auto(a_collect, a_len);
 
 				}
-				else if (cksum != prev_cksum) {
+				else if (last_cksum != prev_cksum) {
 
 					/* Otherwise, if the checksum has changed, see if we have something
 					   worthwhile queued up, and collect that if the answer is yes. */
@@ -9302,14 +8957,14 @@ static u8 core_fuzzing(char** argv) {
 						maybe_add_auto(a_collect, a_len);
 
 					a_len = 0;
-					prev_cksum = cksum;
+					prev_cksum = last_cksum;
 
 				}
 
 				/* Continue collecting string, but only if the bit flip actually made
 				   any difference - we don't want no-op tokens. */
 
-				if (cksum != queue_cur->exec_cksum) {
+				if (last_cksum != queue_cur->exec_cksum) {
 
 					if (a_len < MAX_AUTO_EXTRA) a_collect[a_len] = out_buf[stage_cur >> 3];
 					a_len++;
@@ -9436,17 +9091,10 @@ static u8 core_fuzzing(char** argv) {
 
 			if (!eff_map[EFF_APOS(stage_cur)]) {
 
-				u32 cksum;
-
 				/* If in dumb mode or if the file is very short, just flag everything
 				   without wasting time on checksums. */
 
-				if (!dumb_mode && len >= EFF_MIN_LEN)
-					cksum = hash32(trace_bits, MAP_SIZE, HASH_CONST);
-				else
-					cksum = ~queue_cur->exec_cksum;
-
-				if (cksum != queue_cur->exec_cksum) {
+				if (last_cksum != queue_cur->exec_cksum) {
 					eff_map[EFF_APOS(stage_cur)] = 1;
 					eff_cnt++;
 				}
@@ -12363,7 +12011,12 @@ int main(int argc, char** argv) {
   check_cpu_governor();
 
   setup_post();
-  setup_shm(dumb_mode);
+
+  if (dumb_mode == 0)
+    if (pipe(piper) != 0)
+      PFATAL("pipe() failed");
+  int flags = fcntl(piper[0], F_GETFL, 0);
+  fcntl(piper[0], F_SETFL, flags | O_NONBLOCK);
 
   if (!in_bitmap) memset(virgin_bits, 255, MAP_SIZE);
   memset(virgin_tmout, 255, MAP_SIZE);

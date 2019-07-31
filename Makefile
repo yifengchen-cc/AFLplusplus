@@ -27,7 +27,8 @@ MISC_PATH   = $(PREFIX)/share/afl
 
 # PROGS intentionally omit afl-as, which gets installed elsewhere.
 
-PROGS       = afl-gcc afl-fuzz afl-showmap afl-tmin afl-gotcpu afl-analyze
+PROGS       = afl-gcc afl-fuzz
+# afl-showmap afl-tmin afl-gotcpu afl-analyze
 SH_PROGS    = afl-plot afl-cmin afl-whatsup afl-system-config
 
 CFLAGS     ?= -O3 -funroll-loops
@@ -138,7 +139,7 @@ sharedmem.o : sharedmem.c
 	$(CC) $(CFLAGS) -c sharedmem.c
 
 afl-fuzz: afl-fuzz.c afl-common.o sharedmem.o $(COMM_HDR) | test_x86
-	$(CC) $(CFLAGS) $@.c afl-common.o sharedmem.o -o $@ $(LDFLAGS) $(PYFLAGS)
+	$(CC) $(CFLAGS) $@.c afl-common.o sharedmem.o -o $@ $(LDFLAGS) $(PYFLAGS) -DXXH_INLINE_ALL
 
 afl-showmap: afl-showmap.c afl-common.o sharedmem.o $(COMM_HDR) | test_x86
 	$(CC) $(CFLAGS) $@.c afl-common.o sharedmem.o -o $@ $(LDFLAGS)
@@ -155,14 +156,15 @@ afl-gotcpu: afl-gotcpu.c $(COMM_HDR) | test_x86
 
 ifndef AFL_NO_X86
 
-test_build: afl-gcc afl-as afl-showmap
+test_build: afl-gcc afl-as
+# afl-showmap
 	@echo "[*] Testing the CC wrapper and instrumentation output..."
 	unset AFL_USE_ASAN AFL_USE_MSAN; AFL_QUIET=1 AFL_INST_RATIO=100 AFL_PATH=. ./$(TEST_CC) $(CFLAGS) test-instr.c -o test-instr $(LDFLAGS)
-	echo 0 | ./afl-showmap -m none -q -o .test-instr0 ./test-instr
-	echo 1 | ./afl-showmap -m none -q -o .test-instr1 ./test-instr
-	@rm -f test-instr
-	@cmp -s .test-instr0 .test-instr1; DR="$$?"; rm -f .test-instr0 .test-instr1; if [ "$$DR" = "0" ]; then echo; echo "Oops, the instrumentation does not seem to be behaving correctly!"; echo; echo "Please ping <lcamtuf@google.com> to troubleshoot the issue."; echo; exit 1; fi
-	@echo "[+] All right, the instrumentation seems to be working!"
+#	echo 0 | ./afl-showmap -m none -q -o .test-instr0 ./test-instr
+#	echo 1 | ./afl-showmap -m none -q -o .test-instr1 ./test-instr
+#	@rm -f test-instr
+#	@cmp -s .test-instr0 .test-instr1; DR="$$?"; rm -f .test-instr0 .test-instr1; if [ "$$DR" = "0" ]; then echo; echo "Oops, the instrumentation does not seem to be behaving correctly!"; echo; echo "Please ping <lcamtuf@google.com> to troubleshoot the issue."; echo; exit 1; fi
+#	@echo "[+] All right, the instrumentation seems to be working!"
 
 else
 
