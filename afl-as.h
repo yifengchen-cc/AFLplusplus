@@ -138,7 +138,7 @@ static const u8* trampoline_fmt_64 =
   "movq %%rdx,  0(%%rsp)\n"
   //"movq %%rcx,  8(%%rsp)\n"
   "movq %%rax, 8(%%rsp)\n"
-  "  leaq (%rip), %rax\n"
+  "  leaq (%rip), %rdx\n"
   //"movq $0x%08x, %%rcx\n"
   "call __afl_maybe_log\n"
   "movq 8(%%rsp), %%rax\n"
@@ -418,10 +418,10 @@ static const u8* main_payload_64 =
   "\n"
   "  lahf\n"
   "  seto %al\n"
-  //"  pushq %rax\n"
+  "  pushq %rax\n"
   "\n"
-  "  movq  __afl_area_ptr(%rip), %rdx\n"
-  "  testq %rdx, %rdx\n"
+  "  movq  __afl_area_ptr(%rip), %rax\n"
+  "  testq %rax, %rax\n"
   "  je    __afl_setup\n"
   "\n"
   "__afl_store:\n"
@@ -429,8 +429,7 @@ static const u8* main_payload_64 =
   //"  pushq %rdx\n"
   "  pushq %rsi\n"
   "  pushq %rdi\n"
-  //"  leaq (%rip), %rax\n"
-  "  pushq %rax\n"
+  "  pushq %rdx\n"
   "  movq %rsp, %rsi\n" // ptr to reset
   "  movq $" STRINGIFY((FORKSRV_FD + 3)) ", %rdi\n" // fd
 //"  movq $2, %rdi\n" // fd
@@ -444,7 +443,7 @@ static const u8* main_payload_64 =
   "\n"
   "__afl_return:\n"
   "\n"
-  //"  popq %rax\n"
+  "  popq %rax\n"
   "  addb $127, %al\n"
   "  sahf\n"
   "  ret\n"
@@ -494,14 +493,12 @@ static const u8* main_payload_64 =
   "  subq  $16, %rsp\n"
   "  andq  $0xfffffffffffffff0, %rsp\n"
   "\n"
-  "  /* Enter the fork server mode to avoid the overhead of execve() calls. We\n"
-  "     pushq rdx (area ptr) twice to keep stack alignment neat. */\n"
-  "\n"
   "\n"
   "  /* give the reset data information */\n"
   "  pushq $0xffffffffffffffff\n" // reset indicator
   "  movq %rsp, %rsi\n" // ptr to reset
   "  movq $" STRINGIFY((FORKSRV_FD + 3)) ", %rdi\n" // fd
+//"  movq $2, %rdi\n"
   "  movq $1, %rax\n" // SYS_WRITE
   "  movq $8, %rdx\n" // len = 8
   "  syscall\n"
@@ -608,7 +605,7 @@ static const u8* main_payload_64 =
   "\n"
   "  leaq 352(%rsp), %rsp\n"
   "\n"
-  "  jmp  __afl_store\n"
+  "  jmp  __afl_return\n"
   "\n"
   "__afl_die:\n"
   "\n"
