@@ -494,16 +494,16 @@ static const u8* main_payload_64 =
   "  andq  $0xfffffffffffffff0, %rsp\n"
   "\n"
   "\n"
-  "  /* give the reset data information */\n"
-  "  pushq $0xffffffffffffffff\n" // reset indicator
-  "  movq %rsp, %rsi\n" // ptr to reset
-  "  movq $" STRINGIFY((FORKSRV_FD + 3)) ", %rdi\n" // fd
-//"  movq $2, %rdi\n"
-  "  movq $1, %rax\n" // SYS_WRITE
-  "  movq $8, %rdx\n" // len = 8
-  "  syscall\n"
-  "  popq %rdi\n" // for pushq rip
-  
+//  "  /* give the reset data information */\n"
+//  "  pushq $0xffffffffffffffff\n" // reset indicator
+//  "  movq %rsp, %rsi\n" // ptr to reset
+//  "  movq $" STRINGIFY((FORKSRV_FD + 3)) ", %rdi\n" // fd
+////"  movq $2, %rdi\n"
+//  "  movq $1, %rax\n" // SYS_WRITE
+//  "  movq $8, %rdx\n" // len = 8
+//  "  syscall\n"
+//  "  popq %rdi\n" // for pushq rip
+  "\n"  
   "  /* Phone home and tell the parent that we're OK. (Note that signals with\n"
   "     no SA_RESTART will mess it up). If this fails, assume that the fd is\n"
   "     closed because we were execve()d from an instrumented binary, or because\n"

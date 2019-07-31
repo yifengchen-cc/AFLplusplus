@@ -1,5 +1,38 @@
 # american fuzzy lop plus plus (afl++)
 
+## development branch
+
+this branch tries something completely different.
+instead of a 64kb map which limits the ability of afl to have a good coverage
+(wrapping counters, only 65536 address entries) this tries to do something
+different. Instead of a shared memory map, every basic block is documented
+with it's instruction address to a pipe which is read by afl-fuzz.
+
+This means that every basic block is recorded and full coverage information
+is present.
+
+The current implementation is very basic and creates a strong, fast,
+non-cryptographic 64 bit hash (xxhash64) and this is used to detect new
+coverage.
+
+I am clueless why - but it is ~25% faster than the original map approach.
+
+What do we loose? the map approach allows for identification when rare edges
+are traversed (in not too big targets). 
+This could be done however if the basic blocks would be sorted and compared -
+which takes CPU time and memory.
+Note that also the total number of basic blocks are collected (total_len / 8),
+but it is currently unused. It could be used for weighting in the queue.
+
+Note:
+ - currently only x64 Linux targets work
+ - currently the -L MOpt mode does not work
+ - not sure if resuming works (-i-)
+ - not sure if -M/-S parallel mode works
+
+
+## original README follows
+
   Originally developed by Michal "lcamtuf" Zalewski.
 
   Repository: [https://github.com/vanhauser-thc/AFLplusplus](https://github.com/vanhauser-thc/AFLplusplus)

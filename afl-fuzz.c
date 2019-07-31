@@ -2496,19 +2496,19 @@ static u8 run_target(char** argv, u32 timeout) {
     total_len = 0;
     XXH64_state_t* state = XXH64_createState();
     XXH64_reset(state, 0);
-    s64 foo = -1;
+    //s64 foo = -1;
     do {
-      u8 off = 0;
+      //u8 off = 0;
       len = read(piper[0], data, sizeof(data));
       if (len >= 8) {
-        if (memcmp(data, (char*)&foo, 8) == 0)
-          off = 8;
-        XXH64_update(state, data + off, len - off);
-        total_len += len - off;
+        //if (memcmp(data, (char*)&foo, 8) == 0)
+        //  off = 8;
+        XXH64_update(state, data /*+ off*/, len /*- off*/);
+        total_len += len /*- off*/;
         if (1 == debug) {
-          printf("new %ld => %llu\n", len - off, total_len);
+          printf("new %ld => %llu\n", len /*- off*/, total_len);
           u64 x;
-          for (int i = off / 8; i < len / 8; i++) {
+          for (int i = 0/*off / 8*/; i < len / 8; i++) {
             memcpy((char*)&x, data + i * 8, 8);
             printf("%016llx ", x);
           }
