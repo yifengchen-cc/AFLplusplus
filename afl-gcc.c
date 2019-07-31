@@ -256,7 +256,7 @@ static void edit_params(u32 argc, char** argv) {
     cc_params[cc_par_cnt++] = "-lrt";
 #endif
 
-  cc_params[cc_par_cnt++] = "-no-pie";
+  //cc_params[cc_par_cnt++] = "-no-pie";
 
   if (!getenv("AFL_DONT_OPTIMIZE")) {
 

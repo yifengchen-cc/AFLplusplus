@@ -136,13 +136,10 @@ static const u8* trampoline_fmt_64 =
   "\n"
   "leaq -(128+16)(%%rsp), %%rsp\n"
   "movq %%rdx,  0(%%rsp)\n"
-  //"movq %%rcx,  8(%%rsp)\n"
   "movq %%rax, 8(%%rsp)\n"
-  "  leaq (%rip), %rdx\n"
-  //"movq $0x%08x, %%rcx\n"
+  "leaq (%rip), %rdx\n"
   "call __afl_maybe_log\n"
   "movq 8(%%rsp), %%rax\n"
-  //"movq  8(%%rsp), %%rcx\n"
   "movq  0(%%rsp), %%rdx\n"
   "leaq (128+16)(%%rsp), %%rsp\n"
   "\n"
@@ -426,20 +423,18 @@ static const u8* main_payload_64 =
   "\n"
   "__afl_store:\n"
   "\n"
-  //"  pushq %rdx\n"
   "  pushq %rsi\n"
   "  pushq %rdi\n"
   "  pushq %rdx\n"
   "  movq %rsp, %rsi\n" // ptr to reset
   "  movq $" STRINGIFY((FORKSRV_FD + 3)) ", %rdi\n" // fd
-//"  movq $2, %rdi\n" // fd
+//"  movq $2, %rdi\n" // stderr - for debugging
   "  movq $1, %rax\n" // SYS_WRITE
   "  movq $8, %rdx\n" // len = 8
   "  syscall\n"
   "  popq %rdi\n" // for pushq rip
   "  popq %rdi\n"
   "  popq %rsi\n"
-  //"  popq %rdx\n"
   "\n"
   "__afl_return:\n"
   "\n"
@@ -494,16 +489,6 @@ static const u8* main_payload_64 =
   "  andq  $0xfffffffffffffff0, %rsp\n"
   "\n"
   "\n"
-//  "  /* give the reset data information */\n"
-//  "  pushq $0xffffffffffffffff\n" // reset indicator
-//  "  movq %rsp, %rsi\n" // ptr to reset
-//  "  movq $" STRINGIFY((FORKSRV_FD + 3)) ", %rdi\n" // fd
-////"  movq $2, %rdi\n"
-//  "  movq $1, %rax\n" // SYS_WRITE
-//  "  movq $8, %rdx\n" // len = 8
-//  "  syscall\n"
-//  "  popq %rdi\n" // for pushq rip
-  "\n"  
   "  /* Phone home and tell the parent that we're OK. (Note that signals with\n"
   "     no SA_RESTART will mess it up). If this fails, assume that the fd is\n"
   "     closed because we were execve()d from an instrumented binary, or because\n"
