@@ -25,8 +25,10 @@ Note that also the total number of basic blocks are collected (total_len / 8),
 but it is currently unused. It could be used for weighting in the queue.
 
 Note:
+ - only afl-gcc works, not llvm_mode or qemu_mode
  - currently only x64 Linux targets work
  - currently the -L MOpt mode does not work
+ - tools like afl-tmin, afl-showmap etc. don't work because the forkserver works differently
  - not sure if resuming works (-i-)
  - not sure if -M/-S parallel mode works
 
