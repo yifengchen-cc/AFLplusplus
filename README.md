@@ -15,8 +15,6 @@ The current implementation is very basic and creates a strong, fast,
 non-cryptographic 64 bit hash (xxhash64) and this is used to detect new
 coverage.
 
-I am clueless why - but it is ~25% faster than the original map approach.
-
 What do we loose? the map approach allows for identification when rare edges
 are traversed (in not too big targets). 
 This could be done however if the basic blocks would be sorted and compared -
@@ -24,8 +22,10 @@ which takes CPU time and memory.
 Note that also the total number of basic blocks are collected (total_len / 8),
 but it is currently unused. It could be used for weighting in the queue.
 
+*This is an ineffecient implementation and just acting as a generic proof of concept!*
+
 Note:
- - only afl-gcc works, not llvm_mode or qemu_mode
+ - only afl-gcc works (and has a bug), not llvm_mode or qemu_mode
  - currently only x64 Linux targets work
  - currently the -L MOpt mode does not work
  - tools like afl-tmin, afl-showmap etc. don't work because the forkserver works differently
