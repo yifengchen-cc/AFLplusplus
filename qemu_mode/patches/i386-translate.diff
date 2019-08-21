@@ -1,5 +1,5 @@
 diff --git a/target/i386/translate.c b/target/i386/translate.c
-index 0dd5fbe4..b95d341e 100644
+index 03150a86..402dd153 100644
 --- a/target/i386/translate.c
 +++ b/target/i386/translate.c
 @@ -32,6 +32,8 @@

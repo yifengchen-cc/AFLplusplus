@@ -1,8 +1,8 @@
 diff --git a/linux-user/elfload.c b/linux-user/elfload.c
-index 5bccd2e2..fd7460b3 100644
+index bd43c481..6338e3dc 100644
 --- a/linux-user/elfload.c
 +++ b/linux-user/elfload.c
-@@ -20,6 +20,8 @@
+@@ -22,6 +22,8 @@
  
  #define ELF_OSABI   ELFOSABI_SYSV
  
@@ -11,7 +11,7 @@ index 5bccd2e2..fd7460b3 100644
  /* from personality.h */
  
  /*
-@@ -2301,6 +2303,21 @@ static void load_elf_image(const char *image_name, int image_fd,
+@@ -2388,6 +2390,21 @@ static void load_elf_image(const char *image_name, int image_fd,
      info->brk = 0;
      info->elf_flags = ehdr->e_flags;
  
@@ -33,7 +33,7 @@ index 5bccd2e2..fd7460b3 100644
      for (i = 0; i < ehdr->e_phnum; i++) {
          struct elf_phdr *eppnt = phdr + i;
          if (eppnt->p_type == PT_LOAD) {
-@@ -2335,9 +2352,11 @@ static void load_elf_image(const char *image_name, int image_fd,
+@@ -2430,9 +2447,11 @@ static void load_elf_image(const char *image_name, int image_fd,
              if (elf_prot & PROT_EXEC) {
                  if (vaddr < info->start_code) {
                      info->start_code = vaddr;
@@ -45,7 +45,7 @@ index 5bccd2e2..fd7460b3 100644
                  }
              }
              if (elf_prot & PROT_WRITE) {
-@@ -2662,6 +2681,22 @@ int load_elf_binary(struct linux_binprm *bprm, struct image_info *info)
+@@ -2762,6 +2781,22 @@ int load_elf_binary(struct linux_binprm *bprm, struct image_info *info)
         change some of these later */
      bprm->p = setup_arg_pages(bprm, info);
  
