@@ -28,16 +28,17 @@ void detect_file_args(char** argv, u8* prog_in) {
   if ((buf = (char*)malloc((size_t)size)) != NULL) {
 
     cwd = getcwd(buf, (size_t)size);                    /* portable version */
+
   } else {
 
     PFATAL("getcwd() failed");
     cwd = 0;                                          /* for dumb compilers */
 
   }
+
 #endif
 
-  if (!cwd)
-    PFATAL("getcwd() failed");
+  if (!cwd) PFATAL("getcwd() failed");
 
   while (argv[i]) {
 
@@ -47,8 +48,7 @@ void detect_file_args(char** argv, u8* prog_in) {
 
       u8 *aa_subst, *n_arg;
 
-      if (!prog_in)
-        FATAL("@@ syntax is not supported by this tool.");
+      if (!prog_in) FATAL("@@ syntax is not supported by this tool.");
 
       /* Be sure that we're always using fully-qualified paths. */
 
@@ -64,8 +64,7 @@ void detect_file_args(char** argv, u8* prog_in) {
       argv[i] = n_arg;
       *aa_loc = '@';
 
-      if (prog_in[0] != '/')
-        ck_free(aa_subst);
+      if (prog_in[0] != '/') ck_free(aa_subst);
 
     }
 

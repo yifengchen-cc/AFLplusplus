@@ -103,7 +103,6 @@ extern u8 child_timed_out;
 
 static const u8 count_class_lookup[256] = {
 
-
     [0]           = 0,
     [1]           = 1,
     [2]           = 2,
@@ -124,8 +123,7 @@ static void classify_counts(u8* mem) {
 
     while (i--) {
 
-      if (*mem)
-        *mem = 1;
+      if (*mem) *mem = 1;
       mem++;
 
     }
@@ -149,8 +147,7 @@ static void apply_mask(u32* mem, u32* mask) {
 
   u32 i = (MAP_SIZE >> 2);
 
-  if (!mask)
-    return;
+  if (!mask) return;
 
   while (i--) {
 
@@ -170,8 +167,7 @@ static inline u8 anything_set(void) {
   u32  i   = (MAP_SIZE >> 2);
 
   while (i--)
-    if (*(ptr++))
-      return 1;
+    if (*(ptr++)) return 1;
 
   return 0;
 
@@ -181,8 +177,7 @@ static inline u8 anything_set(void) {
 
 static void at_exit_handler(void) {
 
-  if (out_file)
-    unlink(out_file);                                      /* Ignore errors */
+  if (out_file) unlink(out_file);                          /* Ignore errors */
 
 }
 
@@ -193,11 +188,9 @@ static void read_initial_file(void) {
   struct stat st;
   s32         fd = open(in_file, O_RDONLY);
 
-  if (fd < 0)
-    PFATAL("Unable to open '%s'", in_file);
+  if (fd < 0) PFATAL("Unable to open '%s'", in_file);
 
-  if (fstat(fd, &st) || !st.st_size)
-    FATAL("Zero-sized input file.");
+  if (fstat(fd, &st) || !st.st_size) FATAL("Zero-sized input file.");
 
   if (st.st_size >= TMIN_MAX_FILE)
     FATAL("Input file is too large (%u MB max)", TMIN_MAX_FILE / 1024 / 1024);
@@ -223,8 +216,7 @@ static s32 write_to_file(u8* path, u8* mem, u32 len) {
 
   ret = open(path, O_RDWR | O_CREAT | O_EXCL, 0600);
 
-  if (ret < 0)
-    PFATAL("Unable to create '%s'", path);
+  if (ret < 0) PFATAL("Unable to create '%s'", path);
 
   ck_write(ret, mem, len, path);
 
@@ -248,21 +240,21 @@ static void write_to_testcase(void* mem, u32 len) {
 
     fd = open(out_file, O_WRONLY | O_CREAT | O_EXCL, 0600);
 
-    if (fd < 0)
-      PFATAL("Unable to create '%s'", out_file);
+    if (fd < 0) PFATAL("Unable to create '%s'", out_file);
 
   } else
+
     lseek(fd, 0, SEEK_SET);
 
   ck_write(fd, mem, len, out_file);
 
   if (use_stdin) {
 
-    if (ftruncate(fd, len))
-      PFATAL("ftruncate() failed");
+    if (ftruncate(fd, len)) PFATAL("ftruncate() failed");
     lseek(fd, 0, SEEK_SET);
 
   } else
+
     close(fd);
 
 }
@@ -289,6 +281,7 @@ static void handle_timeout(int sig) {
 
 
 }
+
 */
 
 /* start the app and it's forkserver */
@@ -422,6 +415,7 @@ static void init_forkserver(char **argv) {
 
 
 }
+
 */
 
 /* Execute target application. Returns 0 if the changes are a dud, or
@@ -447,22 +441,19 @@ static u8 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
 
   if ((res = write(fsrv_ctl_fd, &prev_timed_out, 4)) != 4) {
 
-    if (stop_soon)
-      return 0;
+    if (stop_soon) return 0;
     RPFATAL(res, "Unable to request new process from fork server (OOM?)");
 
   }
 
   if ((res = read(fsrv_st_fd, &child_pid, 4)) != 4) {
 
-    if (stop_soon)
-      return 0;
+    if (stop_soon) return 0;
     RPFATAL(res, "Unable to request new process from fork server (OOM?)");
 
   }
 
-  if (child_pid <= 0)
-    FATAL("Fork server is misbehaving (OOM?)");
+  if (child_pid <= 0) FATAL("Fork server is misbehaving (OOM?)");
 
   /* Configure timeout, wait for child, cancel timeout. */
 
@@ -477,8 +468,7 @@ static u8 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
 
   if ((res = read(fsrv_st_fd, &status, 4)) != 4) {
 
-    if (stop_soon)
-      return 0;
+    if (stop_soon) return 0;
     RPFATAL(res, "Unable to communicate with fork server (OOM?)");
 
   }
@@ -523,13 +513,11 @@ static u8 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
       (WIFEXITED(status) && WEXITSTATUS(status) == MSAN_ERROR) ||
       (WIFEXITED(status) && WEXITSTATUS(status) && exit_crash)) {
 
-    if (first_run)
-      crash_mode = 1;
+    if (first_run) crash_mode = 1;
 
     if (crash_mode) {
 
-      if (!exact_mode)
-        return 1;
+      if (!exact_mode) return 1;
 
     } else {
 
@@ -551,11 +539,9 @@ static u8 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
 
   cksum = hash32(trace_bits, MAP_SIZE, HASH_CONST);
 
-  if (first_run)
-    orig_cksum = cksum;
+  if (first_run) orig_cksum = cksum;
 
-  if (orig_cksum == cksum)
-    return 1;
+  if (orig_cksum == cksum) return 1;
 
   missed_paths++;
   return 0;
@@ -593,8 +579,7 @@ static void minimize(char** argv) {
   set_len = next_p2(in_len / TMIN_SET_STEPS);
   set_pos = 0;
 
-  if (set_len < TMIN_SET_MIN_SIZE)
-    set_len = TMIN_SET_MIN_SIZE;
+  if (set_len < TMIN_SET_MIN_SIZE) set_len = TMIN_SET_MIN_SIZE;
 
   ACTF(cBRI "Stage #0: " cRST "One-time block normalization...");
 
@@ -603,8 +588,7 @@ static void minimize(char** argv) {
     u32 use_len = MIN(set_len, in_len - set_pos);
 
     for (i = 0; i < use_len; i++)
-      if (in_data[set_pos + i] != '0')
-        break;
+      if (in_data[set_pos + i] != '0') break;
 
     if (i != use_len) {
 
@@ -649,8 +633,7 @@ next_pass:
 
 next_del_blksize:
 
-  if (!del_len)
-    del_len = 1;
+  if (!del_len) del_len = 1;
   del_pos  = 0;
   prev_del = 1;
 
@@ -663,8 +646,7 @@ next_del_blksize:
     s32 tail_len;
 
     tail_len = in_len - del_pos - del_len;
-    if (tail_len < 0)
-      tail_len = 0;
+    if (tail_len < 0) tail_len = 0;
 
     /* If we have processed at least one full block (initially, prev_del == 1),
        and we did so without deleting the previous one, and we aren't at the
@@ -698,6 +680,7 @@ next_del_blksize:
       changed_any = 1;
 
     } else
+
       del_pos += del_len;
 
   }
@@ -715,8 +698,7 @@ next_del_blksize:
     WARNF(cLRD
           "Down to zero bytes - check the command line and mem limit!" cRST);
 
-  if (cur_pass > 1 && !changed_any)
-    goto finalize_all;
+  if (cur_pass > 1 && !changed_any) goto finalize_all;
 
   /*************************
    * ALPHABET MINIMIZATION *
@@ -730,8 +712,7 @@ next_del_blksize:
 
   for (i = 0; i < in_len; i++) {
 
-    if (!alpha_map[in_data[i]])
-      alpha_size++;
+    if (!alpha_map[in_data[i]]) alpha_size++;
     alpha_map[in_data[i]]++;
 
   }
@@ -744,14 +725,12 @@ next_del_blksize:
     u32 r;
     u8  res;
 
-    if (i == '0' || !alpha_map[i])
-      continue;
+    if (i == '0' || !alpha_map[i]) continue;
 
     memcpy(tmp_buf, in_data, in_len);
 
     for (r = 0; r < in_len; r++)
-      if (tmp_buf[r] == i)
-        tmp_buf[r] = '0';
+      if (tmp_buf[r] == i) tmp_buf[r] = '0';
 
     res = run_target(argv, tmp_buf, in_len, 0);
 
@@ -786,8 +765,7 @@ next_del_blksize:
 
     u8 res, orig = tmp_buf[i];
 
-    if (orig == '0')
-      continue;
+    if (orig == '0') continue;
     tmp_buf[i] = '0';
 
     res = run_target(argv, tmp_buf, in_len, 0);
@@ -799,6 +777,7 @@ next_del_blksize:
       changed_any = 1;
 
     } else
+
       tmp_buf[i] = orig;
 
   }
@@ -808,8 +787,7 @@ next_del_blksize:
   OKF("Character minimization done, %u byte%s replaced.", alpha_del2,
       alpha_del2 == 1 ? "" : "s");
 
-  if (changed_any)
-    goto next_pass;
+  if (changed_any) goto next_pass;
 
 finalize_all:
 
@@ -832,8 +810,7 @@ static void handle_stop_sig(int sig) {
 
   stop_soon = 1;
 
-  if (child_pid > 0)
-    kill(child_pid, SIGKILL);
+  if (child_pid > 0) kill(child_pid, SIGKILL);
 
 }
 
@@ -844,8 +821,7 @@ static void set_up_environment(void) {
   u8* x;
 
   dev_null_fd = open("/dev/null", O_RDWR);
-  if (dev_null_fd < 0)
-    PFATAL("Unable to open /dev/null");
+  if (dev_null_fd < 0) PFATAL("Unable to open /dev/null");
 
   if (!out_file) {
 
@@ -854,8 +830,7 @@ static void set_up_environment(void) {
     if (access(use_dir, R_OK | W_OK | X_OK)) {
 
       use_dir = getenv("TMPDIR");
-      if (!use_dir)
-        use_dir = "/tmp";
+      if (!use_dir) use_dir = "/tmp";
 
     }
 
@@ -867,8 +842,7 @@ static void set_up_environment(void) {
 
   out_fd = open(out_file, O_RDWR | O_CREAT | O_EXCL, 0600);
 
-  if (out_fd < 0)
-    PFATAL("Unable to create '%s'", out_file);
+  if (out_fd < 0) PFATAL("Unable to create '%s'", out_file);
 
   /* Set sane defaults... */
 
@@ -1008,6 +982,7 @@ static void find_binary(u8* fname) {
         delim++;
 
       } else
+
         cur_elem = ck_strdup(env_path);
 
       env_path = delim;
@@ -1028,8 +1003,7 @@ static void find_binary(u8* fname) {
 
     }
 
-    if (!target_path)
-      FATAL("Program '%s' not found or not executable", fname);
+    if (!target_path) FATAL("Program '%s' not found or not executable", fname);
 
   }
 
@@ -1055,8 +1029,7 @@ static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
 
     cp = alloc_printf("%s/afl-qemu-trace", tmp);
 
-    if (access(cp, X_OK))
-      FATAL("Unable to find '%s'", tmp);
+    if (access(cp, X_OK)) FATAL("Unable to find '%s'", tmp);
 
     target_path = new_argv[0] = cp;
     return new_argv;
@@ -1081,6 +1054,7 @@ static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
     }
 
   } else
+
     ck_free(own_copy);
 
   if (!access(BIN_PATH "/afl-qemu-trace", X_OK)) {
@@ -1100,8 +1074,7 @@ static void read_bitmap(u8* fname) {
 
   s32 fd = open(fname, O_RDONLY);
 
-  if (fd < 0)
-    PFATAL("Unable to open '%s'", fname);
+  if (fd < 0) PFATAL("Unable to open '%s'", fname);
 
   ck_read(fd, mask_bitmap, MAP_SIZE, fname);
 
@@ -1127,37 +1100,32 @@ int main(int argc, char** argv) {
 
       case 'i':
 
-        if (in_file)
-          FATAL("Multiple -i options not supported");
+        if (in_file) FATAL("Multiple -i options not supported");
         in_file = optarg;
         break;
 
       case 'o':
 
-        if (output_file)
-          FATAL("Multiple -o options not supported");
+        if (output_file) FATAL("Multiple -o options not supported");
         output_file = optarg;
         break;
 
       case 'f':
 
-        if (out_file)
-          FATAL("Multiple -f options not supported");
+        if (out_file) FATAL("Multiple -f options not supported");
         use_stdin = 0;
         out_file  = optarg;
         break;
 
       case 'e':
 
-        if (edges_only)
-          FATAL("Multiple -e options not supported");
+        if (edges_only) FATAL("Multiple -e options not supported");
         edges_only = 1;
         break;
 
       case 'x':
 
-        if (exit_crash)
-          FATAL("Multiple -x options not supported");
+        if (exit_crash) FATAL("Multiple -x options not supported");
         exit_crash = 1;
         break;
 
@@ -1165,8 +1133,7 @@ int main(int argc, char** argv) {
 
         u8 suffix = 'M';
 
-        if (mem_limit_given)
-          FATAL("Multiple -m options not supported");
+        if (mem_limit_given) FATAL("Multiple -m options not supported");
         mem_limit_given = 1;
 
         if (!strcmp(optarg, "none")) {
@@ -1182,29 +1149,19 @@ int main(int argc, char** argv) {
 
         switch (suffix) {
 
-          case 'T':
-            mem_limit *= 1024 * 1024;
-            break;
-          case 'G':
-            mem_limit *= 1024;
-            break;
-          case 'k':
-            mem_limit /= 1024;
-            break;
-          case 'M':
-            break;
+          case 'T': mem_limit *= 1024 * 1024; break;
+          case 'G': mem_limit *= 1024; break;
+          case 'k': mem_limit /= 1024; break;
+          case 'M': break;
 
-          default:
-            FATAL("Unsupported suffix or bad syntax for -m");
+          default: FATAL("Unsupported suffix or bad syntax for -m");
 
         }
 
-        if (mem_limit < 5)
-          FATAL("Dangerously low value of -m");
+        if (mem_limit < 5) FATAL("Dangerously low value of -m");
 
         if (sizeof(rlim_t) == 4 && mem_limit > 2000)
           FATAL("Value of -m out of range on 32-bit systems");
-
 
       }
 
@@ -1212,8 +1169,7 @@ int main(int argc, char** argv) {
 
       case 't':
 
-        if (timeout_given)
-          FATAL("Multiple -t options not supported");
+        if (timeout_given) FATAL("Multiple -t options not supported");
         timeout_given = 1;
 
         exec_tmout = atoi(optarg);
@@ -1225,20 +1181,16 @@ int main(int argc, char** argv) {
 
       case 'Q':
 
-        if (qemu_mode)
-          FATAL("Multiple -Q options not supported");
-        if (!mem_limit_given)
-          mem_limit = MEM_LIMIT_QEMU;
+        if (qemu_mode) FATAL("Multiple -Q options not supported");
+        if (!mem_limit_given) mem_limit = MEM_LIMIT_QEMU;
 
         qemu_mode = 1;
         break;
 
       case 'U':
 
-        if (unicorn_mode)
-          FATAL("Multiple -Q options not supported");
-        if (!mem_limit_given)
-          mem_limit = MEM_LIMIT_UNICORN;
+        if (unicorn_mode) FATAL("Multiple -Q options not supported");
+        if (!mem_limit_given) mem_limit = MEM_LIMIT_UNICORN;
 
         unicorn_mode = 1;
         break;
@@ -1258,20 +1210,16 @@ int main(int argc, char** argv) {
            The option may be extended and made more official if it proves
            to be useful. */
 
-        if (mask_bitmap)
-          FATAL("Multiple -B options not supported");
+        if (mask_bitmap) FATAL("Multiple -B options not supported");
         mask_bitmap = ck_alloc(MAP_SIZE);
         read_bitmap(optarg);
         break;
 
-      default:
-
-        usage(argv[0]);
+      default: usage(argv[0]);
 
     }
 
-  if (optind == argc || !in_file || !output_file)
-    usage(argv[0]);
+  if (optind == argc || !in_file || !output_file) usage(argv[0]);
 
   setup_shm(0);
   atexit(at_exit_handler);
@@ -1308,8 +1256,7 @@ int main(int argc, char** argv) {
     OKF("Program terminates normally, minimizing in " cCYA "instrumented" cRST
         " mode.");
 
-    if (!anything_set())
-      FATAL("No instrumentation detected.");
+    if (!anything_set()) FATAL("No instrumentation detected.");
 
   } else {
 

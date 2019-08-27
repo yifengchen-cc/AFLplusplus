@@ -118,6 +118,7 @@ static void edit_params(u32 argc, char** argv) {
 
     u8* alt_cxx  = getenv("AFL_CXX");
     cc_params[0] = alt_cxx ? alt_cxx : (u8*)"clang++";
+
   } else {
 
     u8* alt_cc   = getenv("AFL_CC");
@@ -164,6 +165,7 @@ static void edit_params(u32 argc, char** argv) {
         alloc_printf("%s/split-compares-pass.so", obj_path);
 
   }
+
   // /laf
 
 #ifdef USE_TRACE_PC
@@ -187,20 +189,16 @@ static void edit_params(u32 argc, char** argv) {
 
   /* Detect stray -v calls from ./configure scripts. */
 
-  if (argc == 1 && !strcmp(argv[1], "-v"))
-    maybe_linking = 0;
+  if (argc == 1 && !strcmp(argv[1], "-v")) maybe_linking = 0;
 
   while (--argc) {
 
     u8* cur = *(++argv);
 
-    if (!strcmp(cur, "-m32"))
-      bit_mode = 32;
-    if (!strcmp(cur, "-m64"))
-      bit_mode = 64;
+    if (!strcmp(cur, "-m32")) bit_mode = 32;
+    if (!strcmp(cur, "-m64")) bit_mode = 64;
 
-    if (!strcmp(cur, "-x"))
-      x_set = 1;
+    if (!strcmp(cur, "-x")) x_set = 1;
 
     if (!strcmp(cur, "-c") || !strcmp(cur, "-S") || !strcmp(cur, "-E"))
       maybe_linking = 0;
@@ -208,11 +206,9 @@ static void edit_params(u32 argc, char** argv) {
     if (!strcmp(cur, "-fsanitize=address") || !strcmp(cur, "-fsanitize=memory"))
       asan_set = 1;
 
-    if (strstr(cur, "FORTIFY_SOURCE"))
-      fortify_set = 1;
+    if (strstr(cur, "FORTIFY_SOURCE")) fortify_set = 1;
 
-    if (!strcmp(cur, "-shared"))
-      maybe_linking = 0;
+    if (!strcmp(cur, "-shared")) maybe_linking = 0;
 
     if (!strcmp(cur, "-Wl,-z,defs") || !strcmp(cur, "-Wl,--no-undefined"))
       continue;
@@ -225,8 +221,7 @@ static void edit_params(u32 argc, char** argv) {
 
     cc_params[cc_par_cnt++] = "-fstack-protector-all";
 
-    if (!fortify_set)
-      cc_params[cc_par_cnt++] = "-D_FORTIFY_SOURCE=2";
+    if (!fortify_set) cc_params[cc_par_cnt++] = "-D_FORTIFY_SOURCE=2";
 
   }
 
@@ -234,8 +229,7 @@ static void edit_params(u32 argc, char** argv) {
 
     if (getenv("AFL_USE_ASAN")) {
 
-      if (getenv("AFL_USE_MSAN"))
-        FATAL("ASAN and MSAN are mutually exclusive");
+      if (getenv("AFL_USE_MSAN")) FATAL("ASAN and MSAN are mutually exclusive");
 
       if (getenv("AFL_HARDEN"))
         FATAL("ASAN and AFL_HARDEN are mutually exclusive");
@@ -245,8 +239,7 @@ static void edit_params(u32 argc, char** argv) {
 
     } else if (getenv("AFL_USE_MSAN")) {
 
-      if (getenv("AFL_USE_ASAN"))
-        FATAL("ASAN and MSAN are mutually exclusive");
+      if (getenv("AFL_USE_ASAN")) FATAL("ASAN and MSAN are mutually exclusive");
 
       if (getenv("AFL_HARDEN"))
         FATAL("MSAN and AFL_HARDEN are mutually exclusive");

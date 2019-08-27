@@ -48,7 +48,6 @@ using namespace llvm;
 
 namespace {
 
-
 class AFLCoverage : public ModulePass {
 
  public:
@@ -61,8 +60,7 @@ class AFLCoverage : public ModulePass {
       std::string   line;
       std::ifstream fileStream;
       fileStream.open(instWhiteListFilename);
-      if (!fileStream)
-        report_fatal_error("Unable to open AFL_LLVM_WHITELIST");
+      if (!fileStream) report_fatal_error("Unable to open AFL_LLVM_WHITELIST");
       getline(fileStream, line);
       while (fileStream) {
 
@@ -84,6 +82,7 @@ class AFLCoverage : public ModulePass {
 
  protected:
   std::list<std::string> myWhitelist;
+
 };
 
 }  // namespace
@@ -107,6 +106,7 @@ bool AFLCoverage::runOnModule(Module &M) {
     SAYF(cCYA "afl-llvm-pass" VERSION cRST " by <lszekeres@google.com>\n");
 
   } else
+
     be_quiet = 1;
 
   /* Decide instrumentation ratio */
@@ -207,13 +207,11 @@ bool AFLCoverage::runOnModule(Module &M) {
 
         /* Either we couldn't figure out our location or the location is
          * not whitelisted, so we skip instrumentation. */
-        if (!instrumentBlock)
-          continue;
+        if (!instrumentBlock) continue;
 
       }
 
-      if (AFL_R(100) >= inst_ratio)
-        continue;
+      if (AFL_R(100) >= inst_ratio) continue;
 
       /* Make up cur_loc */
 
@@ -229,25 +227,23 @@ bool AFLCoverage::runOnModule(Module &M) {
       for (BasicBlock *Pred : predecessors(&BB)) {
 
         int count = 0;
-        if (more_than_one == -1)
-          more_than_one = 0;
+        if (more_than_one == -1) more_than_one = 0;
         // fprintf(stderr, " %p=>", Pred);
         for (BasicBlock *Succ : successors(Pred)) {
 
           // if (count > 0)
           //  fprintf(stderr, "|");
-          if (Succ != NULL)
-            count++;
+          if (Succ != NULL) count++;
           // fprintf(stderr, "%p", Succ);
 
         }
-        if (count > 1)
-          more_than_one = 1;
+
+        if (count > 1) more_than_one = 1;
 
       }
+
       // fprintf(stderr, " == %d\n", more_than_one);
-      if (more_than_one != 1)
-        continue;
+      if (more_than_one != 1) continue;
 
       ConstantInt *CurLoc = ConstantInt::get(Int32Ty, cur_loc);
 
@@ -299,6 +295,7 @@ bool AFLCoverage::runOnModule(Module &M) {
            type to 8 bits type IRB.CreateExtractValue(SumWithOverflowBit, 1), //
            overflow Int8Ty));
                   // Solution #2
+
                   } else if (neverZero_counters_str[0] == '2') {
 
                      auto cf = IRB.CreateICmpEQ(Counter,
@@ -306,6 +303,7 @@ bool AFLCoverage::runOnModule(Module &M) {
            IRB.CreateAdd(ConstantInt::get(Int8Ty, 1), cf); Incr =
            IRB.CreateAdd(Counter, HowMuch);
                   // Solution #3
+
                   } else if (neverZero_counters_str[0] == '3') {
 
         */
@@ -316,21 +314,25 @@ bool AFLCoverage::runOnModule(Module &M) {
         Incr       = IRB.CreateAdd(Incr, carry);
 /*
          // Solution #4
+
          } else if (neverZero_counters_str[0] == '4') {
 
             auto cf = IRB.CreateICmpULT(Incr, ConstantInt::get(Int8Ty, 1));
             auto carry = IRB.CreateZExt(cf, Int8Ty);
             Incr = IRB.CreateAdd(Incr, carry);
+
          } else {
 
             fprintf(stderr, "Error: unknown value for AFL_NZERO_COUNTS: %s
    (valid is 1-4)\n", neverZero_counters_str); exit(-1);
 
          }
+
 */
 #if LLVM_VERSION_MAJOR < 9
 
       }
+
 #endif
 
       IRB.CreateStore(Incr, MapPtrIdx)

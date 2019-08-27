@@ -48,11 +48,7 @@ void tcg_gen_afl_compcov_log_call(void *func, target_ulong cur_loc,
 static void afl_compcov_log_16(target_ulong cur_loc, target_ulong arg1,
                                target_ulong arg2) {
 
-  if ((arg1 & 0xff) == (arg2 & 0xff)) {
-
-    afl_area_ptr[cur_loc]++;
-
-  }
+  if ((arg1 & 0xff) == (arg2 & 0xff)) { afl_area_ptr[cur_loc]++; }
 
 }
 
@@ -128,25 +124,17 @@ static void afl_gen_compcov(target_ulong cur_loc, TCGv_i64 arg1, TCGv_i64 arg2,
 
   switch (ot) {
 
-    case MO_64:
-      func = &afl_compcov_log_64;
-      break;
-    case MO_32:
-      func = &afl_compcov_log_32;
-      break;
-    case MO_16:
-      func = &afl_compcov_log_16;
-      break;
-    default:
-      return;
+    case MO_64: func = &afl_compcov_log_64; break;
+    case MO_32: func = &afl_compcov_log_32; break;
+    case MO_16: func = &afl_compcov_log_16; break;
+    default: return;
 
   }
 
   cur_loc = (cur_loc >> 4) ^ (cur_loc << 8);
   cur_loc &= MAP_SIZE - 1;
 
-  if (cur_loc >= afl_inst_rms)
-    return;
+  if (cur_loc >= afl_inst_rms) return;
 
   tcg_gen_afl_compcov_log_call(func, cur_loc, arg1, arg2);
 

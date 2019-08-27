@@ -40,23 +40,33 @@
 
 #define DEBUGF(_x...)                 \
   do {                                \
+                                      \
     if (alloc_verbose) {              \
+                                      \
       if (++call_depth == 1) {        \
+                                      \
         fprintf(stderr, "[AFL] " _x); \
         fprintf(stderr, "\n");        \
+                                      \
       }                               \
       call_depth--;                   \
+                                      \
     }                                 \
+                                      \
   } while (0)
 
 #define FATAL(_x...)                    \
   do {                                  \
+                                        \
     if (++call_depth == 1) {            \
+                                        \
       fprintf(stderr, "*** [AFL] " _x); \
       fprintf(stderr, " ***\n");        \
       abort();                          \
+                                        \
     }                                   \
     call_depth--;                       \
+                                        \
   } while (0)
 
 /* Macro to count the number of pages needed to store a buffer: */
@@ -93,8 +103,7 @@ static void* __dislocator_alloc(size_t len) {
 
   if (total_mem + len > max_mem || total_mem + len < total_mem) {
 
-    if (hard_fail)
-      FATAL("total allocs exceed %u MB", max_mem / 1024 / 1024);
+    if (hard_fail) FATAL("total allocs exceed %u MB", max_mem / 1024 / 1024);
 
     DEBUGF("total allocs exceed %u MB, returning NULL", max_mem / 1024 / 1024);
 
@@ -110,8 +119,7 @@ static void* __dislocator_alloc(size_t len) {
 
   if (ret == (void*)-1) {
 
-    if (hard_fail)
-      FATAL("mmap() failed on alloc (OOM?)");
+    if (hard_fail) FATAL("mmap() failed on alloc (OOM?)");
 
     DEBUGF("mmap() failed on alloc (OOM?)");
 
@@ -188,8 +196,7 @@ void* malloc(size_t len) {
 
   DEBUGF("malloc(%zu) = %p [%zu total]", len, ret, total_mem);
 
-  if (ret && len)
-    memset(ret, ALLOC_CLOBBER, len);
+  if (ret && len) memset(ret, ALLOC_CLOBBER, len);
 
   return ret;
 
@@ -205,11 +212,9 @@ void free(void* ptr) {
 
   DEBUGF("free(%p)", ptr);
 
-  if (!ptr)
-    return;
+  if (!ptr) return;
 
-  if (PTR_C(ptr) != ALLOC_CANARY)
-    FATAL("bad allocator canary on free()");
+  if (PTR_C(ptr) != ALLOC_CANARY) FATAL("bad allocator canary on free()");
 
   len = PTR_L(ptr);
 
@@ -238,8 +243,7 @@ void* realloc(void* ptr, size_t len) {
 
   if (ret && ptr) {
 
-    if (PTR_C(ptr) != ALLOC_CANARY)
-      FATAL("bad allocator canary on realloc()");
+    if (PTR_C(ptr) != ALLOC_CANARY) FATAL("bad allocator canary on realloc()");
 
     memcpy(ret, ptr, MIN(len, PTR_L(ptr)));
     free(ptr);
@@ -259,8 +263,7 @@ __attribute__((constructor)) void __dislocator_init(void) {
   if (tmp) {
 
     max_mem = atoi(tmp) * 1024 * 1024;
-    if (!max_mem)
-      FATAL("Bad value for AFL_LD_LIMIT_MB");
+    if (!max_mem) FATAL("Bad value for AFL_LD_LIMIT_MB");
 
   }
 

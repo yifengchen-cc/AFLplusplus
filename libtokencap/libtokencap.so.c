@@ -51,24 +51,20 @@ static void __tokencap_load_mappings(void) {
 
   __tokencap_ro_loaded = 1;
 
-  if (!f)
-    return;
+  if (!f) return;
 
   while (fgets(buf, MAX_LINE, f)) {
 
     u8    rf, wf;
     void *st, *en;
 
-    if (sscanf(buf, "%p-%p %c%c", &st, &en, &rf, &wf) != 4)
-      continue;
-    if (wf == 'w' || rf != 'r')
-      continue;
+    if (sscanf(buf, "%p-%p %c%c", &st, &en, &rf, &wf) != 4) continue;
+    if (wf == 'w' || rf != 'r') continue;
 
     __tokencap_ro[__tokencap_ro_cnt].st = (void*)st;
     __tokencap_ro[__tokencap_ro_cnt].en = (void*)en;
 
-    if (++__tokencap_ro_cnt == MAX_MAPPINGS)
-      break;
+    if (++__tokencap_ro_cnt == MAX_MAPPINGS) break;
 
   }
 
@@ -82,12 +78,10 @@ static u8 __tokencap_is_ro(const void* ptr) {
 
   u32 i;
 
-  if (!__tokencap_ro_loaded)
-    __tokencap_load_mappings();
+  if (!__tokencap_ro_loaded) __tokencap_load_mappings();
 
   for (i = 0; i < __tokencap_ro_cnt; i++)
-    if (ptr >= __tokencap_ro[i].st && ptr <= __tokencap_ro[i].en)
-      return 1;
+    if (ptr >= __tokencap_ro[i].st && ptr <= __tokencap_ro[i].en) return 1;
 
   return 0;
 
@@ -107,8 +101,7 @@ static void __tokencap_dump(const u8* ptr, size_t len, u8 is_text) {
 
   for (i = 0; i < len; i++) {
 
-    if (is_text && !ptr[i])
-      break;
+    if (is_text && !ptr[i]) break;
 
     switch (ptr[i]) {
 
@@ -121,9 +114,7 @@ static void __tokencap_dump(const u8* ptr, size_t len, u8 is_text) {
         pos += 4;
         break;
 
-      default:
-
-        buf[pos++] = ptr[i];
+      default: buf[pos++] = ptr[i];
 
     }
 
@@ -142,19 +133,15 @@ static void __tokencap_dump(const u8* ptr, size_t len, u8 is_text) {
 
 int strcmp(const char* str1, const char* str2) {
 
-  if (__tokencap_is_ro(str1))
-    __tokencap_dump(str1, strlen(str1), 1);
-  if (__tokencap_is_ro(str2))
-    __tokencap_dump(str2, strlen(str2), 1);
+  if (__tokencap_is_ro(str1)) __tokencap_dump(str1, strlen(str1), 1);
+  if (__tokencap_is_ro(str2)) __tokencap_dump(str2, strlen(str2), 1);
 
   while (1) {
 
     unsigned char c1 = *str1, c2 = *str2;
 
-    if (c1 != c2)
-      return (c1 > c2) ? 1 : -1;
-    if (!c1)
-      return 0;
+    if (c1 != c2) return (c1 > c2) ? 1 : -1;
+    if (!c1) return 0;
     str1++;
     str2++;
 
@@ -166,19 +153,15 @@ int strcmp(const char* str1, const char* str2) {
 
 int strncmp(const char* str1, const char* str2, size_t len) {
 
-  if (__tokencap_is_ro(str1))
-    __tokencap_dump(str1, len, 1);
-  if (__tokencap_is_ro(str2))
-    __tokencap_dump(str2, len, 1);
+  if (__tokencap_is_ro(str1)) __tokencap_dump(str1, len, 1);
+  if (__tokencap_is_ro(str2)) __tokencap_dump(str2, len, 1);
 
   while (len--) {
 
     unsigned char c1 = *str1, c2 = *str2;
 
-    if (!c1)
-      return 0;
-    if (c1 != c2)
-      return (c1 > c2) ? 1 : -1;
+    if (!c1) return 0;
+    if (c1 != c2) return (c1 > c2) ? 1 : -1;
     str1++;
     str2++;
 
@@ -192,19 +175,15 @@ int strncmp(const char* str1, const char* str2, size_t len) {
 
 int strcasecmp(const char* str1, const char* str2) {
 
-  if (__tokencap_is_ro(str1))
-    __tokencap_dump(str1, strlen(str1), 1);
-  if (__tokencap_is_ro(str2))
-    __tokencap_dump(str2, strlen(str2), 1);
+  if (__tokencap_is_ro(str1)) __tokencap_dump(str1, strlen(str1), 1);
+  if (__tokencap_is_ro(str2)) __tokencap_dump(str2, strlen(str2), 1);
 
   while (1) {
 
     unsigned char c1 = tolower(*str1), c2 = tolower(*str2);
 
-    if (c1 != c2)
-      return (c1 > c2) ? 1 : -1;
-    if (!c1)
-      return 0;
+    if (c1 != c2) return (c1 > c2) ? 1 : -1;
+    if (!c1) return 0;
     str1++;
     str2++;
 
@@ -216,19 +195,15 @@ int strcasecmp(const char* str1, const char* str2) {
 
 int strncasecmp(const char* str1, const char* str2, size_t len) {
 
-  if (__tokencap_is_ro(str1))
-    __tokencap_dump(str1, len, 1);
-  if (__tokencap_is_ro(str2))
-    __tokencap_dump(str2, len, 1);
+  if (__tokencap_is_ro(str1)) __tokencap_dump(str1, len, 1);
+  if (__tokencap_is_ro(str2)) __tokencap_dump(str2, len, 1);
 
   while (len--) {
 
     unsigned char c1 = tolower(*str1), c2 = tolower(*str2);
 
-    if (!c1)
-      return 0;
-    if (c1 != c2)
-      return (c1 > c2) ? 1 : -1;
+    if (!c1) return 0;
+    if (c1 != c2) return (c1 > c2) ? 1 : -1;
     str1++;
     str2++;
 
@@ -242,16 +217,13 @@ int strncasecmp(const char* str1, const char* str2, size_t len) {
 
 int memcmp(const void* mem1, const void* mem2, size_t len) {
 
-  if (__tokencap_is_ro(mem1))
-    __tokencap_dump(mem1, len, 0);
-  if (__tokencap_is_ro(mem2))
-    __tokencap_dump(mem2, len, 0);
+  if (__tokencap_is_ro(mem1)) __tokencap_dump(mem1, len, 0);
+  if (__tokencap_is_ro(mem2)) __tokencap_dump(mem2, len, 0);
 
   while (len--) {
 
     unsigned char c1 = *(const char*)mem1, c2 = *(const char*)mem2;
-    if (c1 != c2)
-      return (c1 > c2) ? 1 : -1;
+    if (c1 != c2) return (c1 > c2) ? 1 : -1;
     mem1++;
     mem2++;
 
@@ -268,8 +240,7 @@ char* strstr(const char* haystack, const char* needle) {
   if (__tokencap_is_ro(haystack))
     __tokencap_dump(haystack, strlen(haystack), 1);
 
-  if (__tokencap_is_ro(needle))
-    __tokencap_dump(needle, strlen(needle), 1);
+  if (__tokencap_is_ro(needle)) __tokencap_dump(needle, strlen(needle), 1);
 
   do {
 
@@ -279,8 +250,7 @@ char* strstr(const char* haystack, const char* needle) {
     while (*n && *h && *n == *h)
       n++, h++;
 
-    if (!*n)
-      return (char*)haystack;
+    if (!*n) return (char*)haystack;
 
   } while (*(haystack++));
 
@@ -295,8 +265,7 @@ char* strcasestr(const char* haystack, const char* needle) {
   if (__tokencap_is_ro(haystack))
     __tokencap_dump(haystack, strlen(haystack), 1);
 
-  if (__tokencap_is_ro(needle))
-    __tokencap_dump(needle, strlen(needle), 1);
+  if (__tokencap_is_ro(needle)) __tokencap_dump(needle, strlen(needle), 1);
 
   do {
 
@@ -306,8 +275,7 @@ char* strcasestr(const char* haystack, const char* needle) {
     while (*n && *h && tolower(*n) == tolower(*h))
       n++, h++;
 
-    if (!*n)
-      return (char*)haystack;
+    if (!*n) return (char*)haystack;
 
   } while (*(haystack++));
 
@@ -320,10 +288,8 @@ char* strcasestr(const char* haystack, const char* needle) {
 __attribute__((constructor)) void __tokencap_init(void) {
 
   u8* fn = getenv("AFL_TOKEN_FILE");
-  if (fn)
-    __tokencap_out_file = fopen(fn, "a");
-  if (!__tokencap_out_file)
-    __tokencap_out_file = stderr;
+  if (fn) __tokencap_out_file = fopen(fn, "a");
+  if (!__tokencap_out_file) __tokencap_out_file = stderr;
 
 }
 

@@ -36,13 +36,11 @@ using namespace llvm;
 
 namespace {
 
-
 class SplitSwitchesTransform : public ModulePass {
 
  public:
   static char ID;
   SplitSwitchesTransform() : ModulePass(ID) {
-
 
   }
 
@@ -58,6 +56,7 @@ class SplitSwitchesTransform : public ModulePass {
     return "splits switch constructs";
 
   }
+
   struct CaseExpr {
 
     ConstantInt *Val;
@@ -66,8 +65,8 @@ class SplitSwitchesTransform : public ModulePass {
     CaseExpr(ConstantInt *val = nullptr, BasicBlock *bb = nullptr)
         : Val(val), BB(bb) {
 
-
     }
+
   };
 
   typedef std::vector<CaseExpr> CaseVector;
@@ -79,6 +78,7 @@ class SplitSwitchesTransform : public ModulePass {
   BasicBlock *switchConvert(CaseVector Cases, std::vector<bool> bytesChecked,
                             BasicBlock *OrigBlock, BasicBlock *NewDefault,
                             Value *Val, unsigned level);
+
 };
 
 }  // namespace
@@ -119,8 +119,7 @@ BasicBlock *SplitSwitchesTransform::switchConvert(
   unsigned smallestSize  = 257;
   for (unsigned i = 0; i < byteSets.size(); i++) {
 
-    if (bytesChecked[i])
-      continue;
+    if (bytesChecked[i]) continue;
     if (byteSets[i].size() < smallestSize) {
 
       smallestIndex = i;
@@ -129,6 +128,7 @@ BasicBlock *SplitSwitchesTransform::switchConvert(
     }
 
   }
+
   assert(bytesChecked[smallestIndex] == false);
 
   /* there are only smallestSize different bytes at index smallestIndex */
@@ -144,6 +144,7 @@ BasicBlock *SplitSwitchesTransform::switchConvert(
 
     Trunc = new TruncInst(Shift, ByteType);
     NewNode->getInstList().push_back(Trunc);
+
   } else {
 
     /* not necessary to trunc */
@@ -178,11 +179,7 @@ BasicBlock *SplitSwitchesTransform::switchConvert(
       for (BasicBlock::iterator I = Cases[0].BB->begin();
            I != Cases[0].BB->end(); ++I) {
 
-        if (!isa<PHINode>(&*I)) {
-
-          continue;
-
-        }
+        if (!isa<PHINode>(&*I)) { continue; }
         PHINode *PN = cast<PHINode>(I);
 
         /* Only update the first occurrence. */
@@ -199,6 +196,7 @@ BasicBlock *SplitSwitchesTransform::switchConvert(
         }
 
       }
+
     } else {
 
       BasicBlock *BB = switchConvert(Cases, bytesChecked, OrigBlock, NewDefault,
@@ -208,6 +206,7 @@ BasicBlock *SplitSwitchesTransform::switchConvert(
     }
 
   }
+
   /* there is no byte which we can directly check on, split the tree */
   else {
 
@@ -232,6 +231,7 @@ BasicBlock *SplitSwitchesTransform::switchConvert(
       if (byte < pivot) {
 
         LHSCases.push_back(Case);
+
       } else {
 
         RHSCases.push_back(Case);
@@ -239,6 +239,7 @@ BasicBlock *SplitSwitchesTransform::switchConvert(
       }
 
     }
+
     BasicBlock *LBB, *RBB;
     LBB = switchConvert(LHSCases, bytesChecked, OrigBlock, NewDefault, Val,
                         level + 1);
@@ -273,8 +274,7 @@ bool SplitSwitchesTransform::splitSwitches(Module &M) {
 
       if ((switchInst = dyn_cast<SwitchInst>(BB.getTerminator()))) {
 
-        if (switchInst->getNumCases() < 1)
-          continue;
+        if (switchInst->getNumCases() < 1) continue;
         switches.push_back(switchInst);
 
       }
@@ -283,8 +283,7 @@ bool SplitSwitchesTransform::splitSwitches(Module &M) {
 
   }
 
-  if (!switches.size())
-    return false;
+  if (!switches.size()) return false;
   errs() << "Rewriting " << switches.size() << " switch statements "
          << "\n";
 
@@ -304,8 +303,7 @@ bool SplitSwitchesTransform::splitSwitches(Module &M) {
      * less, don't bother with the code below. */
     if (!SI->getNumCases() || bitw <= 8) {
 
-      if (getenv("AFL_QUIET") == NULL)
-        errs() << "skip trivial switch..\n";
+      if (getenv("AFL_QUIET") == NULL) errs() << "skip trivial switch..\n";
       continue;
 
     }
@@ -344,11 +342,7 @@ bool SplitSwitchesTransform::splitSwitches(Module &M) {
     /* we have to update the phi nodes! */
     for (BasicBlock::iterator I = Default->begin(); I != Default->end(); ++I) {
 
-      if (!isa<PHINode>(&*I)) {
-
-        continue;
-
-      }
+      if (!isa<PHINode>(&*I)) { continue; }
       PHINode *PN = cast<PHINode>(I);
 
       /* Only update the first occurrence. */

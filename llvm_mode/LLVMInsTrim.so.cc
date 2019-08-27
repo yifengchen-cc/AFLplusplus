@@ -63,8 +63,7 @@ struct InsTrim : public ModulePass {
       std::string   line;
       std::ifstream fileStream;
       fileStream.open(instWhiteListFilename);
-      if (!fileStream)
-        report_fatal_error("Unable to open AFL_LLVM_WHITELIST");
+      if (!fileStream) report_fatal_error("Unable to open AFL_LLVM_WHITELIST");
       getline(fileStream, line);
       while (fileStream) {
 
@@ -101,7 +100,9 @@ struct InsTrim : public ModulePass {
     if (isatty(2) && !getenv("AFL_QUIET")) {
 
       SAYF(cCYA "LLVMInsTrim" VERSION cRST " by csienslab\n");
+
     } else
+
       be_quiet = 1;
 
 #if LLVM_VERSION_MAJOR < 9
@@ -130,6 +131,7 @@ struct InsTrim : public ModulePass {
        and 100)");
 
           }
+
     */
 
     LLVMContext &C       = M.getContext();
@@ -149,11 +151,7 @@ struct InsTrim : public ModulePass {
 
     for (Function &F : M) {
 
-      if (!F.size()) {
-
-        continue;
-
-      }
+      if (!F.size()) { continue; }
 
       if (!myWhitelist.empty()) {
 
@@ -165,8 +163,7 @@ struct InsTrim : public ModulePass {
 
           BasicBlock::iterator IP = BB.getFirstInsertionPt();
           IRBuilder<>          IRB(&(*IP));
-          if (!Loc)
-            Loc = IP->getDebugLoc();
+          if (!Loc) Loc = IP->getDebugLoc();
 
         }
 
@@ -239,7 +236,9 @@ struct InsTrim : public ModulePass {
           MS.insert(&BB);
 
         }
+
         total_rs += F.size();
+
       } else {
 
         auto Result = markNodes(&F);
@@ -251,6 +250,7 @@ struct InsTrim : public ModulePass {
 
           MS.insert(HS.begin(), HS.end());
           total_rs += MS.size();
+
         } else {
 
           DenseSet<std::pair<BasicBlock *, BasicBlock *>> EdgeSet;
@@ -276,6 +276,7 @@ struct InsTrim : public ModulePass {
               }
 
             }
+
             if (!Inserted) {
 
               MS.insert(BB);
@@ -285,6 +286,7 @@ struct InsTrim : public ModulePass {
             }
 
           }
+
           for (auto I = EdgeSet.begin(), E = EdgeSet.end(); I != E; ++I) {
 
             auto PredBB = I->first;
@@ -311,11 +313,7 @@ struct InsTrim : public ModulePass {
 
         for (BasicBlock &BB : F) {
 
-          if (MS.find(&BB) == MS.end()) {
-
-            continue;
-
-          }
+          if (MS.find(&BB) == MS.end()) { continue; }
           IRBuilder<> IRB(&*BB.getFirstInsertionPt());
           IRB.CreateStore(ConstantInt::get(Int32Ty, genLabel()), OldPrev);
 
@@ -327,17 +325,14 @@ struct InsTrim : public ModulePass {
 
         auto PI = pred_begin(&BB);
         auto PE = pred_end(&BB);
-        if (MarkSetOpt && MS.find(&BB) == MS.end()) {
-
-          continue;
-
-        }
+        if (MarkSetOpt && MS.find(&BB) == MS.end()) { continue; }
 
         IRBuilder<> IRB(&*BB.getFirstInsertionPt());
         Value *     L = NULL;
         if (PI == PE) {
 
           L = ConstantInt::get(Int32Ty, genLabel());
+
         } else {
 
           auto *PN = PHINode::Create(Int32Ty, 0, "", &*BB.begin());
@@ -350,6 +345,7 @@ struct InsTrim : public ModulePass {
             PN->addIncoming(ConstantInt::get(Int32Ty, Label), PBB);
 
           }
+
           L = PN;
 
         }
@@ -425,7 +421,9 @@ struct InsTrim : public ModulePass {
     return false;
 
   }
+
 };  // end of struct InsTrim
+
 }  // end of anonymous namespace
 
 char InsTrim::ID = 0;

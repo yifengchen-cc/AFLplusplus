@@ -46,7 +46,9 @@
 
 #define AFL_UNICORN_CPU_SNIPPET1         \
   do {                                   \
+                                         \
     afl_request_tsl(pc, cs_base, flags); \
+                                         \
   } while (0)
 
 /* This snippet kicks in when the instruction pointer is positioned at
@@ -55,12 +57,16 @@
 
 #define AFL_UNICORN_CPU_SNIPPET2          \
   do {                                    \
+                                          \
     if (unlikely(afl_first_instr == 0)) { \
+                                          \
       afl_setup();                        \
       afl_forkserver(env);                \
       afl_first_instr = 1;                \
+                                          \
     }                                     \
     afl_maybe_log(tb->pc);                \
+                                          \
   } while (0)
 
 /* We use one additional file descriptor to relay "needs translation"
@@ -100,6 +106,7 @@ struct afl_tsl {
   target_ulong pc;
   target_ulong cs_base;
   uint64_t     flags;
+
 };
 
 /*************************
@@ -120,10 +127,8 @@ static void afl_setup(void) {
 
     r = atoi(inst_r);
 
-    if (r > 100)
-      r = 100;
-    if (!r)
-      r = 1;
+    if (r > 100) r = 100;
+    if (!r) r = 1;
 
     afl_inst_rms = MAP_SIZE * r / 100;
 
@@ -134,14 +139,12 @@ static void afl_setup(void) {
     shm_id       = atoi(id_str);
     afl_area_ptr = shmat(shm_id, NULL, 0);
 
-    if (afl_area_ptr == (void *)-1)
-      exit(1);
+    if (afl_area_ptr == (void *)-1) exit(1);
 
     /* With AFL_INST_RATIO set to a low value, we want to touch the bitmap
        so that the parent doesn't give up on us. */
 
-    if (inst_r)
-      afl_area_ptr[0] = 1;
+    if (inst_r) afl_area_ptr[0] = 1;
 
   }
 
@@ -153,14 +156,12 @@ static void afl_forkserver(CPUArchState *env) {
 
   static unsigned char tmp[4];
 
-  if (!afl_area_ptr)
-    return;
+  if (!afl_area_ptr) return;
 
   /* Tell the parent that we're alive. If the parent doesn't want
      to talk, assume that we're not running in forkserver mode. */
 
-  if (write(FORKSRV_FD + 1, tmp, 4) != 4)
-    return;
+  if (write(FORKSRV_FD + 1, tmp, 4) != 4) return;
 
   afl_forksrv_pid = getpid();
 
@@ -173,19 +174,16 @@ static void afl_forkserver(CPUArchState *env) {
 
     /* Whoops, parent dead? */
 
-    if (read(FORKSRV_FD, tmp, 4) != 4)
-      exit(2);
+    if (read(FORKSRV_FD, tmp, 4) != 4) exit(2);
 
     /* Establish a channel with child to grab translation commands. We'll
        read from t_fd[0], child will write to TSL_FD. */
 
-    if (pipe(t_fd) || dup2(t_fd[1], TSL_FD) < 0)
-      exit(3);
+    if (pipe(t_fd) || dup2(t_fd[1], TSL_FD) < 0) exit(3);
     close(t_fd[1]);
 
     child_pid = fork();
-    if (child_pid < 0)
-      exit(4);
+    if (child_pid < 0) exit(4);
 
     if (!child_pid) {
 
@@ -203,8 +201,7 @@ static void afl_forkserver(CPUArchState *env) {
 
     close(TSL_FD);
 
-    if (write(FORKSRV_FD + 1, &child_pid, 4) != 4)
-      exit(5);
+    if (write(FORKSRV_FD + 1, &child_pid, 4) != 4) exit(5);
 
     /* Collect translation requests until child dies and closes the pipe. */
 
@@ -212,10 +209,8 @@ static void afl_forkserver(CPUArchState *env) {
 
     /* Get and relay exit status to parent. */
 
-    if (waitpid(child_pid, &status, 0) < 0)
-      exit(6);
-    if (write(FORKSRV_FD + 1, &status, 4) != 4)
-      exit(7);
+    if (waitpid(child_pid, &status, 0) < 0) exit(6);
+    if (write(FORKSRV_FD + 1, &status, 4) != 4) exit(7);
 
   }
 
@@ -232,8 +227,7 @@ static inline void afl_maybe_log(unsigned long cur_loc) {
 
   // MODIFIED FOR UNICORN MODE -> We want to log all addresses,
   // so the checks for 'start < addr < end' are removed
-  if (!afl_area_ptr)
-    return;
+  if (!afl_area_ptr) return;
 
   // DEBUG
   // printf("afl_area_ptr = %p\n", afl_area_ptr);
@@ -251,8 +245,7 @@ static inline void afl_maybe_log(unsigned long cur_loc) {
   // DEBUG
   // printf("afl_inst_rms = 0x%lx\n", afl_inst_rms);
 
-  if (cur_loc >= afl_inst_rms)
-    return;
+  if (cur_loc >= afl_inst_rms) return;
 
   // DEBUG
   // printf("cur_loc = 0x%lx\n", cur_loc);
@@ -271,8 +264,7 @@ static void afl_request_tsl(target_ulong pc, target_ulong cb, uint64_t flags) {
 
   struct afl_tsl t;
 
-  if (!afl_fork_child)
-    return;
+  if (!afl_fork_child) return;
 
   t.pc      = pc;
   t.cs_base = cb;
@@ -294,8 +286,7 @@ static void afl_wait_tsl(CPUArchState *env, int fd) {
 
     /* Broken pipe means it's time to return to the fork server routine. */
 
-    if (read(fd, &t, sizeof(struct afl_tsl)) != sizeof(struct afl_tsl))
-      break;
+    if (read(fd, &t, sizeof(struct afl_tsl)) != sizeof(struct afl_tsl)) break;
 
     tb_find_slow(env, t.pc, t.cs_base, t.flags);
 

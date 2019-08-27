@@ -49,6 +49,7 @@ typedef struct procmaps_struct {
   char pathname[600];  //< the path of the file that backs the area
   // chained list
   struct procmaps_struct* next;  //<handler of the chinaed list
+
 } procmaps_struct;
 
 /**
@@ -59,7 +60,9 @@ typedef struct procmaps_iterator {
 
   procmaps_struct* head;
   procmaps_struct* current;
+
 } procmaps_iterator;
+
 /**
  * pmparser_parse
  * @param pid the process id whose memory map to be parser. the current process
@@ -110,11 +113,13 @@ procmaps_iterator* pmparser_parse(int pid) {
   if (pid >= 0) {
 
     sprintf(maps_path, "/proc/%d/maps", pid);
+
   } else {
 
     sprintf(maps_path, "/proc/self/maps");
 
   }
+
   FILE* file = fopen(maps_path, "r");
   if (!file) {
 
@@ -123,6 +128,7 @@ procmaps_iterator* pmparser_parse(int pid) {
     return NULL;
 
   }
+
   int  ind = 0;
   char buf[PROCMAPS_LINE_MAX_LENGTH];
   // int c;
@@ -170,6 +176,7 @@ procmaps_iterator* pmparser_parse(int pid) {
       current_node    = list_maps;
 
     }
+
     current_node->next = tmp;
     current_node       = tmp;
     ind++;
@@ -189,8 +196,7 @@ procmaps_iterator* pmparser_parse(int pid) {
 
 procmaps_struct* pmparser_next(procmaps_iterator* p_procmaps_it) {
 
-  if (p_procmaps_it->current == NULL)
-    return NULL;
+  if (p_procmaps_it->current == NULL) return NULL;
   procmaps_struct* p_current = p_procmaps_it->current;
   p_procmaps_it->current     = p_procmaps_it->current->next;
   return p_current;
@@ -198,7 +204,9 @@ procmaps_struct* pmparser_next(procmaps_iterator* p_procmaps_it) {
   if(g_current==NULL){
 
           g_current=g_last_head;
+
   }else
+
           g_current=g_current->next;
 
   return g_current;
@@ -209,16 +217,14 @@ procmaps_struct* pmparser_next(procmaps_iterator* p_procmaps_it) {
 void pmparser_free(procmaps_iterator* p_procmaps_it) {
 
   procmaps_struct* maps_list = p_procmaps_it->head;
-  if (maps_list == NULL)
-    return;
+  if (maps_list == NULL) return;
   procmaps_struct* act = maps_list;
   procmaps_struct* nxt = act->next;
   while (act != NULL) {
 
     free(act);
     act = nxt;
-    if (nxt != NULL)
-      nxt = nxt->next;
+    if (nxt != NULL) nxt = nxt->next;
 
   }
 
@@ -238,6 +244,7 @@ void _pmparser_split_line(char* buf, char* addr1, char* addr2, char* perm,
     i++;
 
   }
+
   addr1[i] = '\0';
   i++;
   // addr2
@@ -248,6 +255,7 @@ void _pmparser_split_line(char* buf, char* addr1, char* addr2, char* perm,
     i++;
 
   }
+
   addr2[i - orig] = '\0';
 
   // perm
@@ -260,6 +268,7 @@ void _pmparser_split_line(char* buf, char* addr1, char* addr2, char* perm,
     i++;
 
   }
+
   perm[i - orig] = '\0';
   // offset
   while (buf[i] == '\t' || buf[i] == ' ')
@@ -271,6 +280,7 @@ void _pmparser_split_line(char* buf, char* addr1, char* addr2, char* perm,
     i++;
 
   }
+
   offset[i - orig] = '\0';
   // dev
   while (buf[i] == '\t' || buf[i] == ' ')
@@ -282,6 +292,7 @@ void _pmparser_split_line(char* buf, char* addr1, char* addr2, char* perm,
     i++;
 
   }
+
   device[i - orig] = '\0';
   // inode
   while (buf[i] == '\t' || buf[i] == ' ')
@@ -293,6 +304,7 @@ void _pmparser_split_line(char* buf, char* addr1, char* addr2, char* perm,
     i++;
 
   }
+
   inode[i - orig] = '\0';
   // pathname
   pathname[0] = '\0';
@@ -305,6 +317,7 @@ void _pmparser_split_line(char* buf, char* addr1, char* addr2, char* perm,
     i++;
 
   }
+
   pathname[i - orig] = '\0';
 
 }

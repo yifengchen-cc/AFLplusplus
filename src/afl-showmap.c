@@ -79,7 +79,6 @@ static volatile u8 stop_soon,          /* Ctrl-C pressed?                   */
 
 static const u8 count_class_human[256] = {
 
-
     [0] = 0,          [1] = 1,        [2] = 2,         [3] = 3,
     [4 ... 7] = 4,    [8 ... 15] = 5, [16 ... 31] = 6, [32 ... 127] = 7,
     [128 ... 255] = 8
@@ -87,7 +86,6 @@ static const u8 count_class_human[256] = {
 };
 
 static const u8 count_class_binary[256] = {
-
 
     [0]           = 0,
     [1]           = 1,
@@ -109,8 +107,7 @@ static void classify_counts(u8* mem, const u8* map) {
 
     while (i--) {
 
-      if (*mem)
-        *mem = 1;
+      if (*mem) *mem = 1;
       mem++;
 
     }
@@ -141,29 +138,25 @@ static u32 write_results(void) {
   if (!strncmp(out_file, "/dev/", 5)) {
 
     fd = open(out_file, O_WRONLY, 0600);
-    if (fd < 0)
-      PFATAL("Unable to open '%s'", out_file);
+    if (fd < 0) PFATAL("Unable to open '%s'", out_file);
 
   } else if (!strcmp(out_file, "-")) {
 
     fd = dup(1);
-    if (fd < 0)
-      PFATAL("Unable to open stdout");
+    if (fd < 0) PFATAL("Unable to open stdout");
 
   } else {
 
     unlink(out_file);                                      /* Ignore errors */
     fd = open(out_file, O_WRONLY | O_CREAT | O_EXCL, 0600);
-    if (fd < 0)
-      PFATAL("Unable to create '%s'", out_file);
+    if (fd < 0) PFATAL("Unable to create '%s'", out_file);
 
   }
 
   if (binary_mode) {
 
     for (i = 0; i < MAP_SIZE; i++)
-      if (trace_bits[i])
-        ret++;
+      if (trace_bits[i]) ret++;
 
     ck_write(fd, trace_bits, MAP_SIZE, out_file);
     close(fd);
@@ -172,29 +165,25 @@ static u32 write_results(void) {
 
     FILE* f = fdopen(fd, "w");
 
-    if (!f)
-      PFATAL("fdopen() failed");
+    if (!f) PFATAL("fdopen() failed");
 
     for (i = 0; i < MAP_SIZE; i++) {
 
-      if (!trace_bits[i])
-        continue;
+      if (!trace_bits[i]) continue;
       ret++;
 
       total += trace_bits[i];
-      if (highest < trace_bits[i])
-        highest = trace_bits[i];
+      if (highest < trace_bits[i]) highest = trace_bits[i];
 
       if (cmin_mode) {
 
-        if (child_timed_out)
-          break;
-        if (!caa && child_crashed != cco)
-          break;
+        if (child_timed_out) break;
+        if (!caa && child_crashed != cco) break;
 
         fprintf(f, "%u%u\n", trace_bits[i], i);
 
       } else
+
         fprintf(f, "%06u:%u\n", i, trace_bits[i]);
 
     }
@@ -212,8 +201,7 @@ static u32 write_results(void) {
 static void handle_timeout(int sig) {
 
   child_timed_out = 1;
-  if (child_pid > 0)
-    kill(child_pid, SIGKILL);
+  if (child_pid > 0) kill(child_pid, SIGKILL);
 
 }
 
@@ -224,15 +212,13 @@ static void run_target(char** argv) {
   static struct itimerval it;
   int                     status = 0;
 
-  if (!quiet_mode)
-    SAYF("-- Program output begins --\n" cRST);
+  if (!quiet_mode) SAYF("-- Program output begins --\n" cRST);
 
   MEM_BARRIER();
 
   child_pid = fork();
 
-  if (child_pid < 0)
-    PFATAL("fork() failed");
+  if (child_pid < 0) PFATAL("fork() failed");
 
   if (!child_pid) {
 
@@ -276,8 +262,7 @@ static void run_target(char** argv) {
 
     setrlimit(RLIMIT_CORE, &r);                            /* Ignore errors */
 
-    if (!getenv("LD_BIND_LAZY"))
-      setenv("LD_BIND_NOW", "1", 0);
+    if (!getenv("LD_BIND_LAZY")) setenv("LD_BIND_NOW", "1", 0);
 
     setsid();
 
@@ -300,8 +285,7 @@ static void run_target(char** argv) {
 
   setitimer(ITIMER_REAL, &it, NULL);
 
-  if (waitpid(child_pid, &status, 0) <= 0)
-    FATAL("waitpid() failed");
+  if (waitpid(child_pid, &status, 0) <= 0) FATAL("waitpid() failed");
 
   child_pid           = 0;
   it.it_value.tv_sec  = 0;
@@ -318,11 +302,9 @@ static void run_target(char** argv) {
   classify_counts(trace_bits,
                   binary_mode ? count_class_binary : count_class_human);
 
-  if (!quiet_mode)
-    SAYF(cRST "-- Program output ends --\n");
+  if (!quiet_mode) SAYF(cRST "-- Program output ends --\n");
 
-  if (!child_timed_out && !stop_soon && WIFSIGNALED(status))
-    child_crashed = 1;
+  if (!child_timed_out && !stop_soon && WIFSIGNALED(status)) child_crashed = 1;
 
   if (!quiet_mode) {
 
@@ -344,8 +326,7 @@ static void handle_stop_sig(int sig) {
 
   stop_soon = 1;
 
-  if (child_pid > 0)
-    kill(child_pid, SIGKILL);
+  if (child_pid > 0) kill(child_pid, SIGKILL);
 
 }
 
@@ -475,6 +456,7 @@ static void find_binary(u8* fname) {
         delim++;
 
       } else
+
         cur_elem = ck_strdup(env_path);
 
       env_path = delim;
@@ -495,8 +477,7 @@ static void find_binary(u8* fname) {
 
     }
 
-    if (!target_path)
-      FATAL("Program '%s' not found or not executable", fname);
+    if (!target_path) FATAL("Program '%s' not found or not executable", fname);
 
   }
 
@@ -522,8 +503,7 @@ static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
 
     cp = alloc_printf("%s/afl-qemu-trace", tmp);
 
-    if (access(cp, X_OK))
-      FATAL("Unable to find '%s'", tmp);
+    if (access(cp, X_OK)) FATAL("Unable to find '%s'", tmp);
 
     target_path = new_argv[0] = cp;
     return new_argv;
@@ -548,6 +528,7 @@ static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
     }
 
   } else
+
     ck_free(own_copy);
 
   if (!access(BIN_PATH "/afl-qemu-trace", X_OK)) {
@@ -578,8 +559,7 @@ int main(int argc, char** argv) {
 
       case 'o':
 
-        if (out_file)
-          FATAL("Multiple -o options not supported");
+        if (out_file) FATAL("Multiple -o options not supported");
         out_file = optarg;
         break;
 
@@ -587,8 +567,7 @@ int main(int argc, char** argv) {
 
         u8 suffix = 'M';
 
-        if (mem_limit_given)
-          FATAL("Multiple -m options not supported");
+        if (mem_limit_given) FATAL("Multiple -m options not supported");
         mem_limit_given = 1;
 
         if (!strcmp(optarg, "none")) {
@@ -604,29 +583,19 @@ int main(int argc, char** argv) {
 
         switch (suffix) {
 
-          case 'T':
-            mem_limit *= 1024 * 1024;
-            break;
-          case 'G':
-            mem_limit *= 1024;
-            break;
-          case 'k':
-            mem_limit /= 1024;
-            break;
-          case 'M':
-            break;
+          case 'T': mem_limit *= 1024 * 1024; break;
+          case 'G': mem_limit *= 1024; break;
+          case 'k': mem_limit /= 1024; break;
+          case 'M': break;
 
-          default:
-            FATAL("Unsupported suffix or bad syntax for -m");
+          default: FATAL("Unsupported suffix or bad syntax for -m");
 
         }
 
-        if (mem_limit < 5)
-          FATAL("Dangerously low value of -m");
+        if (mem_limit < 5) FATAL("Dangerously low value of -m");
 
         if (sizeof(rlim_t) == 4 && mem_limit > 2000)
           FATAL("Value of -m out of range on 32-bit systems");
-
 
       }
 
@@ -634,8 +603,7 @@ int main(int argc, char** argv) {
 
       case 't':
 
-        if (timeout_given)
-          FATAL("Multiple -t options not supported");
+        if (timeout_given) FATAL("Multiple -t options not supported");
         timeout_given = 1;
 
         if (strcmp(optarg, "none")) {
@@ -651,17 +619,14 @@ int main(int argc, char** argv) {
 
       case 'e':
 
-        if (edges_only)
-          FATAL("Multiple -e options not supported");
-        if (raw_instr_output)
-          FATAL("-e and -r are mutually exclusive");
+        if (edges_only) FATAL("Multiple -e options not supported");
+        if (raw_instr_output) FATAL("-e and -r are mutually exclusive");
         edges_only = 1;
         break;
 
       case 'q':
 
-        if (quiet_mode)
-          FATAL("Multiple -q options not supported");
+        if (quiet_mode) FATAL("Multiple -q options not supported");
         quiet_mode = 1;
         break;
 
@@ -682,20 +647,16 @@ int main(int argc, char** argv) {
 
       case 'Q':
 
-        if (qemu_mode)
-          FATAL("Multiple -Q options not supported");
-        if (!mem_limit_given)
-          mem_limit = MEM_LIMIT_QEMU;
+        if (qemu_mode) FATAL("Multiple -Q options not supported");
+        if (!mem_limit_given) mem_limit = MEM_LIMIT_QEMU;
 
         qemu_mode = 1;
         break;
 
       case 'U':
 
-        if (unicorn_mode)
-          FATAL("Multiple -U options not supported");
-        if (!mem_limit_given)
-          mem_limit = MEM_LIMIT_UNICORN;
+        if (unicorn_mode) FATAL("Multiple -U options not supported");
+        if (!mem_limit_given) mem_limit = MEM_LIMIT_UNICORN;
 
         unicorn_mode = 1;
         break;
@@ -710,28 +671,22 @@ int main(int argc, char** argv) {
 
       case 'c':
 
-        if (keep_cores)
-          FATAL("Multiple -c options not supported");
+        if (keep_cores) FATAL("Multiple -c options not supported");
         keep_cores = 1;
         break;
 
       case 'r':
 
-        if (raw_instr_output)
-          FATAL("Multiple -r options not supported");
-        if (edges_only)
-          FATAL("-e and -r are mutually exclusive");
+        if (raw_instr_output) FATAL("Multiple -r options not supported");
+        if (edges_only) FATAL("-e and -r are mutually exclusive");
         raw_instr_output = 1;
         break;
 
-      default:
-
-        usage(argv[0]);
+      default: usage(argv[0]);
 
     }
 
-  if (optind == argc || !out_file)
-    usage(argv[0]);
+  if (optind == argc || !out_file) usage(argv[0]);
 
   setup_shm(0);
   setup_signal_handlers();
@@ -760,8 +715,7 @@ int main(int argc, char** argv) {
 
   if (!quiet_mode) {
 
-    if (!tcnt)
-      FATAL("No instrumentation detected" cRST);
+    if (!tcnt) FATAL("No instrumentation detected" cRST);
     OKF("Captured %u tuples (highest value %u, total values %u) in '%s'." cRST,
         tcnt, highest, total, out_file);
 

@@ -110,10 +110,8 @@ static void edit_params(int argc, char** argv) {
     use_clang_as = 1;
 
     afl_as = getenv("AFL_CC");
-    if (!afl_as)
-      afl_as = getenv("AFL_CXX");
-    if (!afl_as)
-      afl_as = "clang";
+    if (!afl_as) afl_as = getenv("AFL_CXX");
+    if (!afl_as) afl_as = "clang";
 
   }
 
@@ -123,12 +121,9 @@ static void edit_params(int argc, char** argv) {
      is not set. We need to check these non-standard variables to properly
      handle the pass_thru logic later on. */
 
-  if (!tmp_dir)
-    tmp_dir = getenv("TEMP");
-  if (!tmp_dir)
-    tmp_dir = getenv("TMP");
-  if (!tmp_dir)
-    tmp_dir = "/tmp";
+  if (!tmp_dir) tmp_dir = getenv("TEMP");
+  if (!tmp_dir) tmp_dir = getenv("TMP");
+  if (!tmp_dir) tmp_dir = "/tmp";
 
   as_params = ck_alloc((argc + 32) * sizeof(u8*));
 
@@ -247,21 +242,19 @@ static void add_instrumentation(void) {
   if (input_file) {
 
     inf = fopen(input_file, "r");
-    if (!inf)
-      PFATAL("Unable to read '%s'", input_file);
+    if (!inf) PFATAL("Unable to read '%s'", input_file);
 
   } else
+
     inf = stdin;
 
   outfd = open(modified_file, O_WRONLY | O_EXCL | O_CREAT, 0600);
 
-  if (outfd < 0)
-    PFATAL("Unable to write to '%s'", modified_file);
+  if (outfd < 0) PFATAL("Unable to write to '%s'", modified_file);
 
   outf = fdopen(outfd, "w");
 
-  if (!outf)
-    PFATAL("fdopen() failed");
+  if (!outf) PFATAL("fdopen() failed");
 
   while (fgets(line, MAX_LINE, inf)) {
 
@@ -285,8 +278,7 @@ static void add_instrumentation(void) {
 
     fputs(line, outf);
 
-    if (pass_thru)
-      continue;
+    if (pass_thru) continue;
 
     /* All right, this is where the actual fun begins. For one, we only want to
        instrument the .text section. So, let's keep track of that in processed
@@ -329,29 +321,23 @@ static void add_instrumentation(void) {
 
     if (strstr(line, ".code")) {
 
-      if (strstr(line, ".code32"))
-        skip_csect = use_64bit;
-      if (strstr(line, ".code64"))
-        skip_csect = !use_64bit;
+      if (strstr(line, ".code32")) skip_csect = use_64bit;
+      if (strstr(line, ".code64")) skip_csect = !use_64bit;
 
     }
 
     /* Detect syntax changes, as could happen with hand-written assembly.
        Skip Intel blocks, resume instrumentation when back to AT&T. */
 
-    if (strstr(line, ".intel_syntax"))
-      skip_intel = 1;
-    if (strstr(line, ".att_syntax"))
-      skip_intel = 0;
+    if (strstr(line, ".intel_syntax")) skip_intel = 1;
+    if (strstr(line, ".att_syntax")) skip_intel = 0;
 
     /* Detect and skip ad-hoc __asm__ blocks, likewise skipping them. */
 
     if (line[0] == '#' || line[1] == '#') {
 
-      if (strstr(line, "#APP"))
-        skip_app = 1;
-      if (strstr(line, "#NO_APP"))
-        skip_app = 0;
+      if (strstr(line, "#APP")) skip_app = 1;
+      if (strstr(line, "#NO_APP")) skip_app = 0;
 
     }
 
@@ -422,7 +408,6 @@ static void add_instrumentation(void) {
 
       if (line[0] == '.') {
 
-
 #endif /* __APPLE__ */
 
         /* .L0: or LBB0_0: style jump destination */
@@ -441,7 +426,6 @@ static void add_instrumentation(void) {
         if ((isdigit(line[2]) ||
              (clang_mode && !strncmp(line + 1, "LBB", 3))) &&
             R(100) < inst_ratio) {
-
 
 #endif /* __APPLE__ */
 
@@ -475,11 +459,9 @@ static void add_instrumentation(void) {
 
   }
 
-  if (ins_lines)
-    fputs(use_64bit ? main_payload_64 : main_payload_32, outf);
+  if (ins_lines) fputs(use_64bit ? main_payload_64 : main_payload_32, outf);
 
-  if (input_file)
-    fclose(inf);
+  if (input_file) fclose(inf);
   fclose(outf);
 
   if (!be_quiet) {
@@ -517,6 +499,7 @@ int main(int argc, char** argv) {
     SAYF(cCYA "afl-as" VERSION cRST " by <lcamtuf@google.com>\n");
 
   } else
+
     be_quiet = 1;
 
   if (argc < 2) {
@@ -566,13 +549,11 @@ int main(int argc, char** argv) {
   if (getenv("AFL_USE_ASAN") || getenv("AFL_USE_MSAN")) {
 
     sanitizer = 1;
-    if (!getenv("AFL_INST_RATIO"))
-      inst_ratio /= 3;
+    if (!getenv("AFL_INST_RATIO")) inst_ratio /= 3;
 
   }
 
-  if (!just_version)
-    add_instrumentation();
+  if (!just_version) add_instrumentation();
 
   if (!(pid = fork())) {
 
@@ -581,14 +562,11 @@ int main(int argc, char** argv) {
 
   }
 
-  if (pid < 0)
-    PFATAL("fork() failed");
+  if (pid < 0) PFATAL("fork() failed");
 
-  if (waitpid(pid, &status, 0) <= 0)
-    PFATAL("waitpid() failed");
+  if (waitpid(pid, &status, 0) <= 0) PFATAL("waitpid() failed");
 
-  if (!getenv("AFL_KEEP_ASSEMBLY"))
-    unlink(modified_file);
+  if (!getenv("AFL_KEEP_ASSEMBLY")) unlink(modified_file);
 
   exit(WEXITSTATUS(status));
 

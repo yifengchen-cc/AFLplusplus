@@ -45,10 +45,14 @@
 
 #define AFL_QEMU_CPU_SNIPPET2         \
   do {                                \
+                                      \
     if (itb->pc == afl_entry_point) { \
+                                      \
       afl_setup();                    \
       afl_forkserver(cpu);            \
+                                      \
     }                                 \
+                                      \
   } while (0)
 
 /* We use one additional file descriptor to relay "needs translation"
@@ -97,12 +101,14 @@ struct afl_tb {
   target_ulong cs_base;
   uint32_t     flags;
   uint32_t     cf_mask;
+
 };
 
 struct afl_tsl {
 
   struct afl_tb tb;
   char          is_chain;
+
 };
 
 struct afl_chain {
@@ -110,6 +116,7 @@ struct afl_chain {
   struct afl_tb last_tb;
   uint32_t      cf_mask;
   int           tb_exit;
+
 };
 
 /* Some forward decls: */
@@ -139,10 +146,8 @@ static void afl_setup(void) {
 
     r = atoi(inst_r);
 
-    if (r > 100)
-      r = 100;
-    if (!r)
-      r = 1;
+    if (r > 100) r = 100;
+    if (!r) r = 1;
 
     afl_inst_rms = MAP_SIZE * r / 100;
 
@@ -153,14 +158,12 @@ static void afl_setup(void) {
     shm_id       = atoi(id_str);
     afl_area_ptr = shmat(shm_id, NULL, 0);
 
-    if (afl_area_ptr == (void *)-1)
-      exit(1);
+    if (afl_area_ptr == (void *)-1) exit(1);
 
     /* With AFL_INST_RATIO set to a low value, we want to touch the bitmap
        so that the parent doesn't give up on us. */
 
-    if (inst_r)
-      afl_area_ptr[0] = 1;
+    if (inst_r) afl_area_ptr[0] = 1;
 
   }
 
@@ -171,11 +174,7 @@ static void afl_setup(void) {
 
   }
 
-  if (getenv("AFL_QEMU_COMPCOV")) {
-
-    afl_enable_compcov = 1;
-
-  }
+  if (getenv("AFL_QEMU_COMPCOV")) { afl_enable_compcov = 1; }
 
   /* pthread_atfork() seems somewhat broken in util/rcu.c, and I'm
      not entirely sure what is the cause. This disables that
@@ -191,16 +190,14 @@ static void afl_forkserver(CPUState *cpu) {
 
   static unsigned char tmp[4];
 
-  if (forkserver_installed == 1)
-    return;
+  if (forkserver_installed == 1) return;
   forkserver_installed = 1;
   // if (!afl_area_ptr) return; // not necessary because of fixed dummy buffer
 
   /* Tell the parent that we're alive. If the parent doesn't want
      to talk, assume that we're not running in forkserver mode. */
 
-  if (write(FORKSRV_FD + 1, tmp, 4) != 4)
-    return;
+  if (write(FORKSRV_FD + 1, tmp, 4) != 4) return;
 
   afl_forksrv_pid = getpid();
 
@@ -213,19 +210,16 @@ static void afl_forkserver(CPUState *cpu) {
 
     /* Whoops, parent dead? */
 
-    if (read(FORKSRV_FD, tmp, 4) != 4)
-      exit(2);
+    if (read(FORKSRV_FD, tmp, 4) != 4) exit(2);
 
     /* Establish a channel with child to grab translation commands. We'll
        read from t_fd[0], child will write to TSL_FD. */
 
-    if (pipe(t_fd) || dup2(t_fd[1], TSL_FD) < 0)
-      exit(3);
+    if (pipe(t_fd) || dup2(t_fd[1], TSL_FD) < 0) exit(3);
     close(t_fd[1]);
 
     child_pid = fork();
-    if (child_pid < 0)
-      exit(4);
+    if (child_pid < 0) exit(4);
 
     if (!child_pid) {
 
@@ -243,8 +237,7 @@ static void afl_forkserver(CPUState *cpu) {
 
     close(TSL_FD);
 
-    if (write(FORKSRV_FD + 1, &child_pid, 4) != 4)
-      exit(5);
+    if (write(FORKSRV_FD + 1, &child_pid, 4) != 4) exit(5);
 
     /* Collect translation requests until child dies and closes the pipe. */
 
@@ -252,10 +245,8 @@ static void afl_forkserver(CPUState *cpu) {
 
     /* Get and relay exit status to parent. */
 
-    if (waitpid(child_pid, &status, 0) < 0)
-      exit(6);
-    if (write(FORKSRV_FD + 1, &status, 4) != 4)
-      exit(7);
+    if (waitpid(child_pid, &status, 0) < 0) exit(6);
+    if (write(FORKSRV_FD + 1, &status, 4) != 4) exit(7);
 
   }
 
@@ -273,8 +264,7 @@ static void afl_request_tsl(target_ulong pc, target_ulong cb, uint32_t flags,
   struct afl_tsl   t;
   struct afl_chain c;
 
-  if (!afl_fork_child)
-    return;
+  if (!afl_fork_child) return;
 
   t.tb.pc      = pc;
   t.tb.cs_base = cb;
@@ -312,8 +302,7 @@ static inline int is_valid_addr(target_ulong addr) {
   l    = (page + TARGET_PAGE_SIZE) - addr;
 
   flags = page_get_flags(page);
-  if (!(flags & PAGE_VALID) || !(flags & PAGE_READ))
-    return 0;
+  if (!(flags & PAGE_VALID) || !(flags & PAGE_READ)) return 0;
 
   return 1;
 
@@ -334,8 +323,7 @@ static void afl_wait_tsl(CPUState *cpu, int fd) {
 
     /* Broken pipe means it's time to return to the fork server routine. */
 
-    if (read(fd, &t, sizeof(struct afl_tsl)) != sizeof(struct afl_tsl))
-      break;
+    if (read(fd, &t, sizeof(struct afl_tsl)) != sizeof(struct afl_tsl)) break;
 
     tb = tb_htable_lookup(cpu, t.tb.pc, t.tb.cs_base, t.tb.flags, t.tb.cf_mask);
 
@@ -351,6 +339,7 @@ static void afl_wait_tsl(CPUState *cpu, int fd) {
         mmap_lock();
         tb = tb_gen_code(cpu, t.tb.pc, t.tb.cs_base, t.tb.flags, 0);
         mmap_unlock();
+
       } else {
 
         invalid_pc = 1;
@@ -368,11 +357,7 @@ static void afl_wait_tsl(CPUState *cpu, int fd) {
 
         last_tb = tb_htable_lookup(cpu, c.last_tb.pc, c.last_tb.cs_base,
                                    c.last_tb.flags, c.cf_mask);
-        if (last_tb) {
-
-          tb_add_jump(last_tb, c.tb_exit, tb);
-
-        }
+        if (last_tb) { tb_add_jump(last_tb, c.tb_exit, tb); }
 
       }
 

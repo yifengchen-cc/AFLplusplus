@@ -72,8 +72,7 @@ static void afl_gen_trace(target_ulong cur_loc) {
   /* Implement probabilistic instrumentation by looking at scrambled block
      address. This keeps the instrumented locations stable across runs. */
 
-  if (cur_loc >= afl_inst_rms)
-    return;
+  if (cur_loc >= afl_inst_rms) return;
 
   tcg_gen_afl_maybe_log_call(cur_loc);
 

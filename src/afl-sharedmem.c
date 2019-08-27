@@ -63,6 +63,7 @@ void remove_shm(void) {
     g_shm_fd = -1;
 
   }
+
 #else
   shmctl(shm_id, IPC_RMID, NULL);
 #endif
@@ -83,11 +84,7 @@ void setup_shm(unsigned char dumb_mode) {
 
   /* create the shared memory segment as if it was a file */
   g_shm_fd = shm_open(g_shm_file_path, O_CREAT | O_RDWR | O_EXCL, 0600);
-  if (g_shm_fd == -1) {
-
-    PFATAL("shm_open() failed");
-
-  }
+  if (g_shm_fd == -1) { PFATAL("shm_open() failed"); }
 
   /* configure the size of the shared memory segment */
   if (ftruncate(g_shm_fd, MAP_SIZE)) {
@@ -114,21 +111,18 @@ void setup_shm(unsigned char dumb_mode) {
      fork server commands. This should be replaced with better auto-detection
      later on, perhaps? */
 
-  if (!dumb_mode)
-    setenv(SHM_ENV_VAR, g_shm_file_path, 1);
+  if (!dumb_mode) setenv(SHM_ENV_VAR, g_shm_file_path, 1);
 
   trace_bits = g_shm_base;
 
-  if (!trace_bits)
-    PFATAL("mmap() failed");
+  if (!trace_bits) PFATAL("mmap() failed");
 
 #else
   u8* shm_str;
 
   shm_id = shmget(IPC_PRIVATE, MAP_SIZE, IPC_CREAT | IPC_EXCL | 0600);
 
-  if (shm_id < 0)
-    PFATAL("shmget() failed");
+  if (shm_id < 0) PFATAL("shmget() failed");
 
   atexit(remove_shm);
 
@@ -141,15 +135,13 @@ void setup_shm(unsigned char dumb_mode) {
      fork server commands. This should be replaced with better auto-detection
      later on, perhaps? */
 
-  if (!dumb_mode)
-    setenv(SHM_ENV_VAR, shm_str, 1);
+  if (!dumb_mode) setenv(SHM_ENV_VAR, shm_str, 1);
 
   ck_free(shm_str);
 
   trace_bits = shmat(shm_id, NULL, 0);
 
-  if (!trace_bits)
-    PFATAL("shmat() failed");
+  if (!trace_bits) PFATAL("shmat() failed");
 
 #endif
 

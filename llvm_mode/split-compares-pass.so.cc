@@ -34,7 +34,6 @@ class SplitComparesTransform : public ModulePass {
   static char ID;
   SplitComparesTransform() : ModulePass(ID) {
 
-
   }
 
   bool runOnModule(Module &M) override;
@@ -53,7 +52,9 @@ class SplitComparesTransform : public ModulePass {
   bool splitCompares(Module &M, unsigned bitw);
   bool simplifyCompares(Module &M);
   bool simplifySignedness(Module &M);
+
 };
+
 }  // namespace
 
 char SplitComparesTransform::ID = 0;
@@ -94,11 +95,7 @@ bool SplitComparesTransform::simplifyCompares(Module &M) {
           IntegerType *intTyOp1 = dyn_cast<IntegerType>(op1->getType());
 
           /* this is probably not needed but we do it anyway */
-          if (!intTyOp0 || !intTyOp1) {
-
-            continue;
-
-          }
+          if (!intTyOp0 || !intTyOp1) { continue; }
 
           icomps.push_back(selectcmpInst);
 
@@ -110,11 +107,7 @@ bool SplitComparesTransform::simplifyCompares(Module &M) {
 
   }
 
-  if (!icomps.size()) {
-
-    return false;
-
-  }
+  if (!icomps.size()) { return false; }
 
   for (auto &IcmpInst : icomps) {
 
@@ -128,18 +121,10 @@ bool SplitComparesTransform::simplifyCompares(Module &M) {
     CmpInst::Predicate new_pred;
     switch (pred) {
 
-      case CmpInst::ICMP_UGE:
-        new_pred = CmpInst::ICMP_UGT;
-        break;
-      case CmpInst::ICMP_SGE:
-        new_pred = CmpInst::ICMP_SGT;
-        break;
-      case CmpInst::ICMP_ULE:
-        new_pred = CmpInst::ICMP_ULT;
-        break;
-      case CmpInst::ICMP_SLE:
-        new_pred = CmpInst::ICMP_SLT;
-        break;
+      case CmpInst::ICMP_UGE: new_pred = CmpInst::ICMP_UGT; break;
+      case CmpInst::ICMP_SGE: new_pred = CmpInst::ICMP_SGT; break;
+      case CmpInst::ICMP_ULE: new_pred = CmpInst::ICMP_ULT; break;
+      case CmpInst::ICMP_SLE: new_pred = CmpInst::ICMP_SLT; break;
       default:  // keep the compiler happy
         continue;
 
@@ -225,18 +210,10 @@ bool SplitComparesTransform::simplifySignedness(Module &M) {
           IntegerType *intTyOp1 = dyn_cast<IntegerType>(op1->getType());
 
           /* see above */
-          if (!intTyOp0 || !intTyOp1) {
-
-            continue;
-
-          }
+          if (!intTyOp0 || !intTyOp1) { continue; }
 
           /* i think this is not possible but to lazy to look it up */
-          if (intTyOp0->getBitWidth() != intTyOp1->getBitWidth()) {
-
-            continue;
-
-          }
+          if (intTyOp0->getBitWidth() != intTyOp1->getBitWidth()) { continue; }
 
           icomps.push_back(selectcmpInst);
 
@@ -248,11 +225,7 @@ bool SplitComparesTransform::simplifySignedness(Module &M) {
 
   }
 
-  if (!icomps.size()) {
-
-    return false;
-
-  }
+  if (!icomps.size()) { return false; }
 
   for (auto &IcmpInst : icomps) {
 
@@ -271,6 +244,7 @@ bool SplitComparesTransform::simplifySignedness(Module &M) {
     if (pred == CmpInst::ICMP_SGT) {
 
       new_pred = CmpInst::ICMP_UGT;
+
     } else {
 
       new_pred = CmpInst::ICMP_ULT;
@@ -313,6 +287,7 @@ bool SplitComparesTransform::simplifySignedness(Module &M) {
        */
       icmp_inv_sig_cmp =
           CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_ULT, t_op0, t_op1);
+
     } else {
 
       /* just the inverse of the above statement */
@@ -320,6 +295,7 @@ bool SplitComparesTransform::simplifySignedness(Module &M) {
           CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_UGT, t_op0, t_op1);
 
     }
+
     sign_bb->getInstList().push_back(icmp_inv_sig_cmp);
     BranchInst::Create(end_bb, sign_bb);
 
@@ -363,18 +339,10 @@ bool SplitComparesTransform::splitCompares(Module &M, unsigned bitw) {
 
   std::vector<Instruction *> icomps;
 
-  if (bitw % 2) {
-
-    return false;
-
-  }
+  if (bitw % 2) { return false; }
 
   /* not supported yet */
-  if (bitw > 64) {
-
-    return false;
-
-  }
+  if (bitw > 64) { return false; }
 
   /* get all EQ, NE, UGT, and ULT icmps of width bitw. if the other two
    * unctions were executed only these four predicates should exist */
@@ -403,11 +371,7 @@ bool SplitComparesTransform::splitCompares(Module &M, unsigned bitw) {
           IntegerType *intTyOp0 = dyn_cast<IntegerType>(op0->getType());
           IntegerType *intTyOp1 = dyn_cast<IntegerType>(op1->getType());
 
-          if (!intTyOp0 || !intTyOp1) {
-
-            continue;
-
-          }
+          if (!intTyOp0 || !intTyOp1) { continue; }
 
           /* check if the bitwidths are the one we are looking for */
           if (intTyOp0->getBitWidth() != bitw ||
@@ -427,11 +391,7 @@ bool SplitComparesTransform::splitCompares(Module &M, unsigned bitw) {
 
   }
 
-  if (!icomps.size()) {
-
-    return false;
-
-  }
+  if (!icomps.size()) { return false; }
 
   for (auto &IcmpInst : icomps) {
 
@@ -488,12 +448,14 @@ bool SplitComparesTransform::splitCompares(Module &M, unsigned bitw) {
       if (pred == CmpInst::ICMP_EQ) {
 
         BranchInst::Create(cmp_low_bb, end_bb, icmp_high, bb);
+
       } else {
 
         /* CmpInst::ICMP_NE */
         BranchInst::Create(end_bb, cmp_low_bb, icmp_high, bb);
 
       }
+
       term->eraseFromParent();
 
       /* create the PHI and connect the edges accordingly */
@@ -502,6 +464,7 @@ bool SplitComparesTransform::splitCompares(Module &M, unsigned bitw) {
       if (pred == CmpInst::ICMP_EQ) {
 
         PN->addIncoming(ConstantInt::get(Int1Ty, 0), bb);
+
       } else {
 
         /* CmpInst::ICMP_NE */
@@ -528,12 +491,14 @@ bool SplitComparesTransform::splitCompares(Module &M, unsigned bitw) {
 
         icmp_inv_cmp = CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_ULT,
                                        op0_high, op1_high);
+
       } else {
 
         icmp_inv_cmp = CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_UGT,
                                        op0_high, op1_high);
 
       }
+
       inv_cmp_bb->getInstList().push_back(icmp_inv_cmp);
 
       auto term = bb->getTerminator();
@@ -565,6 +530,7 @@ bool SplitComparesTransform::splitCompares(Module &M, unsigned bitw) {
     }
 
   }
+
   return true;
 
 }
@@ -574,13 +540,8 @@ bool SplitComparesTransform::runOnModule(Module &M) {
   int bitw = 64;
 
   char *bitw_env = getenv("LAF_SPLIT_COMPARES_BITW");
-  if (!bitw_env)
-    bitw_env = getenv("AFL_LLVM_LAF_SPLIT_COMPARES_BITW");
-  if (bitw_env) {
-
-    bitw = atoi(bitw_env);
-
-  }
+  if (!bitw_env) bitw_env = getenv("AFL_LLVM_LAF_SPLIT_COMPARES_BITW");
+  if (bitw_env) { bitw = atoi(bitw_env); }
 
   simplifyCompares(M);
 

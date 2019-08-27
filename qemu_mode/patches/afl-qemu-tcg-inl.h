@@ -70,16 +70,19 @@ void tcg_gen_afl_maybe_log_call(target_ulong cur_loc) {
       tcg_gen_extr_i64_i32(l, h, orig);
       split_args[real_args++] = tcgv_i32_temp(h);
       split_args[real_args++] = tcgv_i32_temp(l);
+
     } else {
 
       split_args[real_args++] = arg;
 
     }
+
     nargs    = real_args;
     args     = split_args;
     sizemask = 0;
 
   }
+
 #elif defined(TCG_TARGET_EXTEND_ARGS) && TCG_TARGET_REG_BITS == 64
   int is_64bit  = sizemask & (1 << 2);
   int is_signed = sizemask & (2 << 2);
@@ -90,14 +93,17 @@ void tcg_gen_afl_maybe_log_call(target_ulong cur_loc) {
     if (is_signed) {
 
       tcg_gen_ext32s_i64(temp, orig);
+
     } else {
 
       tcg_gen_ext32u_i64(temp, orig);
 
     }
+
     arg = tcgv_i64_temp(temp);
 
   }
+
 #endif /* TCG_TARGET_EXTEND_ARGS */
 
   op = tcg_emit_op(INDEX_op_call);
@@ -118,6 +124,7 @@ void tcg_gen_afl_maybe_log_call(target_ulong cur_loc) {
       real_args++;
 
     }
+
 #endif
     /* If stack grows up, then we will be placing successive
        arguments at lower addresses, which means we need to
@@ -160,11 +167,13 @@ void tcg_gen_afl_maybe_log_call(target_ulong cur_loc) {
 
     tcg_temp_free_internal(args[real_args++]);
     tcg_temp_free_internal(args[real_args++]);
+
   } else {
 
     real_args++;
 
   }
+
   if (orig_sizemask & 1) {
 
     /* The 32-bit ABI returned two 32-bit pieces.  Re-assemble them.
@@ -175,13 +184,10 @@ void tcg_gen_afl_maybe_log_call(target_ulong cur_loc) {
     tcg_temp_free_i64(reth);
 
   }
+
 #elif defined(TCG_TARGET_EXTEND_ARGS) && TCG_TARGET_REG_BITS == 64
   int is_64bit = sizemask & (1 << 2);
-  if (!is_64bit) {
-
-    tcg_temp_free_internal(arg);
-
-  }
+  if (!is_64bit) { tcg_temp_free_internal(arg); }
 #endif /* TCG_TARGET_EXTEND_ARGS */
 
 }
@@ -225,6 +231,7 @@ void tcg_gen_afl_compcov_log_call(void *func, target_ulong cur_loc,
         tcg_gen_extr_i64_i32(l, h, orig);
         split_args[real_args++] = tcgv_i32_temp(h);
         split_args[real_args++] = tcgv_i32_temp(l);
+
       } else {
 
         split_args[real_args++] = args[i];
@@ -232,11 +239,13 @@ void tcg_gen_afl_compcov_log_call(void *func, target_ulong cur_loc,
       }
 
     }
+
     nargs    = real_args;
     args     = split_args;
     sizemask = 0;
 
   }
+
 #elif defined(TCG_TARGET_EXTEND_ARGS) && TCG_TARGET_REG_BITS == 64
   for (i = 0; i < nargs; ++i) {
 
@@ -249,16 +258,19 @@ void tcg_gen_afl_compcov_log_call(void *func, target_ulong cur_loc,
       if (is_signed) {
 
         tcg_gen_ext32s_i64(temp, orig);
+
       } else {
 
         tcg_gen_ext32u_i64(temp, orig);
 
       }
+
       args[i] = tcgv_i64_temp(temp);
 
     }
 
   }
+
 #endif /* TCG_TARGET_EXTEND_ARGS */
 
   op = tcg_emit_op(INDEX_op_call);
@@ -281,6 +293,7 @@ void tcg_gen_afl_compcov_log_call(void *func, target_ulong cur_loc,
         real_args++;
 
       }
+
 #endif
       /* If stack grows up, then we will be placing successive
          arguments at lower addresses, which means we need to
@@ -308,6 +321,7 @@ void tcg_gen_afl_compcov_log_call(void *func, target_ulong cur_loc,
     real_args++;
 
   }
+
   op->args[pi++]  = (uintptr_t)func;
   op->args[pi++]  = flags;
   TCGOP_CALLI(op) = real_args;
@@ -326,6 +340,7 @@ void tcg_gen_afl_compcov_log_call(void *func, target_ulong cur_loc,
 
       tcg_temp_free_internal(args[real_args++]);
       tcg_temp_free_internal(args[real_args++]);
+
     } else {
 
       real_args++;
@@ -333,6 +348,7 @@ void tcg_gen_afl_compcov_log_call(void *func, target_ulong cur_loc,
     }
 
   }
+
   if (orig_sizemask & 1) {
 
     /* The 32-bit ABI returned two 32-bit pieces.  Re-assemble them.
@@ -343,17 +359,15 @@ void tcg_gen_afl_compcov_log_call(void *func, target_ulong cur_loc,
     tcg_temp_free_i64(reth);
 
   }
+
 #elif defined(TCG_TARGET_EXTEND_ARGS) && TCG_TARGET_REG_BITS == 64
   for (i = 0; i < nargs; ++i) {
 
     int is_64bit = sizemask & (1 << (i + 1) * 2);
-    if (!is_64bit) {
-
-      tcg_temp_free_internal(args[i]);
-
-    }
+    if (!is_64bit) { tcg_temp_free_internal(args[i]); }
 
   }
+
 #endif /* TCG_TARGET_EXTEND_ARGS */
 
 }

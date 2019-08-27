@@ -90,8 +90,7 @@ std::vector<bool>                   tag, indfs;
 
 void DFStree(size_t now_id) {
 
-  if (tag[now_id])
-    return;
+  if (tag[now_id]) return;
   tag[now_id]   = true;
   indfs[now_id] = true;
   for (auto succ : tSuccs[now_id]) {
@@ -103,14 +102,17 @@ void DFStree(size_t now_id) {
       continue;
 
     }
+
     Succs[now_id].push_back(succ);
     Preds[succ].push_back(now_id);
     DFStree(succ);
 
   }
+
   indfs[now_id] = false;
 
 }
+
 void turnCFGintoDAG(Function *F) {
 
   tSuccs = Succs;
@@ -123,6 +125,7 @@ void turnCFGintoDAG(Function *F) {
     indfs[i] = false;
 
   }
+
   DFStree(start_point);
   for (size_t i = 0; i < Blocks.size(); ++i)
     if (Succs[i].empty()) {
@@ -145,16 +148,12 @@ bool Compare(uint32_t u, uint32_t v) {
   return dfn[u] < dfn[v];
 
 }
+
 uint32_t eval(uint32_t u) {
 
-  if (mom[u] == u)
-    return u;
+  if (mom[u] == u) return u;
   uint32_t res = eval(mom[u]);
-  if (Compare(sdom[mn[mom[u]]], sdom[mn[u]])) {
-
-    mn[u] = mn[mom[u]];
-
-  }
+  if (Compare(sdom[mn[mom[u]]], sdom[mn[u]])) { mn[u] = mn[mom[u]]; }
   return mom[u] = res;
 
 }
@@ -179,8 +178,7 @@ void DFS(uint32_t now) {
 
 void DominatorTree(Function *F) {
 
-  if (Blocks.empty())
-    return;
+  if (Blocks.empty()) return;
   uint32_t s = start_point;
 
   // Initialization
@@ -208,25 +206,18 @@ void DominatorTree(Function *F) {
   for (uint32_t i = Blocks.size() - 1; i >= 1u; i--) {
 
     uint32_t now = nfd[i];
-    if (now == Blocks.size()) {
-
-      continue;
-
-    }
+    if (now == Blocks.size()) { continue; }
     for (uint32_t pre : Preds[now]) {
 
       if (dfn[pre]) {
 
         eval(pre);
-        if (Compare(sdom[mn[pre]], sdom[now])) {
-
-          sdom[now] = sdom[mn[pre]];
-
-        }
+        if (Compare(sdom[mn[pre]], sdom[now])) { sdom[now] = sdom[mn[pre]]; }
 
       }
 
     }
+
     cov[sdom[now]].push_back(now);
     mom[now] = par[now];
     for (uint32_t x : cov[par[now]]) {
@@ -235,6 +226,7 @@ void DominatorTree(Function *F) {
       if (Compare(sdom[mn[x]], par[now])) {
 
         idom[x] = mn[x];
+
       } else {
 
         idom[x] = par[now];
@@ -248,17 +240,13 @@ void DominatorTree(Function *F) {
   for (uint32_t i = 1; i < Blocks.size(); i += 1) {
 
     uint32_t now = nfd[i];
-    if (now == Blocks.size()) {
-
-      continue;
-
-    }
-    if (idom[now] != sdom[now])
-      idom[now] = idom[idom[now]];
+    if (now == Blocks.size()) { continue; }
+    if (idom[now] != sdom[now]) idom[now] = idom[idom[now]];
 
   }
 
 }
+
 }  // namespace DominatorTree
 
 std::vector<uint32_t>               Visited, InStack;
@@ -267,8 +255,7 @@ std::vector<std::vector<uint32_t> > t_Succ, t_Pred;
 
 void Go(uint32_t now, uint32_t tt) {
 
-  if (now == tt)
-    return;
+  if (now == tt) return;
   Visited[now] = InStack[now] = timeStamp;
 
   for (uint32_t nxt : Succs[now]) {
@@ -278,14 +265,11 @@ void Go(uint32_t now, uint32_t tt) {
       Marked.insert(nxt);
 
     }
+
     t_Succ[now].push_back(nxt);
     t_Pred[nxt].push_back(now);
     InDeg[nxt] += 1;
-    if (Visited[nxt] == timeStamp) {
-
-      continue;
-
-    }
+    if (Visited[nxt] == timeStamp) { continue; }
     Go(nxt, tt);
 
   }
@@ -311,11 +295,7 @@ void TopologicalSort(uint32_t ss, uint32_t tt) {
     for (uint32_t nxt : t_Succ[now]) {
 
       InDeg[nxt] -= 1;
-      if (InDeg[nxt] == 0u) {
-
-        wait.push(nxt);
-
-      }
+      if (InDeg[nxt] == 0u) { wait.push(nxt); }
 
     }
 
@@ -333,15 +313,13 @@ bool                             Indistinguish(uint32_t node1, uint32_t node2) {
     node2          = _swap;
 
   }
+
   for (uint32_t x : NextMarked[node1]) {
 
-    if (NextMarked[node2].find(x) != NextMarked[node2].end()) {
-
-      return true;
-
-    }
+    if (NextMarked[node2].find(x) != NextMarked[node2].end()) { return true; }
 
   }
+
   return false;
 
 }
@@ -355,8 +333,7 @@ void MakeUniq(uint32_t now) {
 
       for (uint32_t pred2 : t_Pred[now]) {
 
-        if (pred1 == pred2)
-          continue;
+        if (pred1 == pred2) continue;
         if (Indistinguish(pred1, pred2)) {
 
           Marked.insert(now);
@@ -366,18 +343,17 @@ void MakeUniq(uint32_t now) {
         }
 
       }
-      if (StopFlag) {
 
-        break;
-
-      }
+      if (StopFlag) { break; }
 
     }
 
   }
+
   if (Marked.find(now) != Marked.end()) {
 
     NextMarked[now].insert(now);
+
   } else {
 
     for (uint32_t pred : t_Pred[now]) {
@@ -397,8 +373,7 @@ void MakeUniq(uint32_t now) {
 void MarkSubGraph(uint32_t ss, uint32_t tt) {
 
   TopologicalSort(ss, tt);
-  if (TopoOrder.empty())
-    return;
+  if (TopoOrder.empty()) return;
 
   for (uint32_t i : TopoOrder) {
 
@@ -433,6 +408,7 @@ void MarkVertice(Function *F) {
     t_Pred[i].clear();
 
   }
+
   timeStamp  = 0;
   uint32_t t = 0;
   // MarkSubGraph(s, t);
@@ -464,17 +440,17 @@ std::pair<std::vector<BasicBlock *>, std::vector<BasicBlock *> > markNodes(
   for (uint32_t x : Markabove) {
 
     auto it = Marked.find(x);
-    if (it != Marked.end())
-      Marked.erase(it);
-    if (x)
-      ResultAbove.push_back(Blocks[x]);
+    if (it != Marked.end()) Marked.erase(it);
+    if (x) ResultAbove.push_back(Blocks[x]);
 
   }
+
   for (uint32_t x : Marked) {
 
     if (x == 0) {
 
       continue;
+
     } else {
 
       Result.push_back(Blocks[x]);

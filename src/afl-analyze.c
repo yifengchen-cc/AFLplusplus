@@ -91,7 +91,6 @@ static volatile u8 stop_soon,          /* Ctrl-C pressed?                   */
 
 static u8 count_class_lookup[256] = {
 
-
     [0]           = 0,
     [1]           = 1,
     [2]           = 2,
@@ -112,8 +111,7 @@ static void classify_counts(u8* mem) {
 
     while (i--) {
 
-      if (*mem)
-        *mem = 1;
+      if (*mem) *mem = 1;
       mem++;
 
     }
@@ -139,8 +137,7 @@ static inline u8 anything_set(void) {
   u32  i   = (MAP_SIZE >> 2);
 
   while (i--)
-    if (*(ptr++))
-      return 1;
+    if (*(ptr++)) return 1;
 
   return 0;
 
@@ -161,11 +158,9 @@ static void read_initial_file(void) {
   struct stat st;
   s32         fd = open(in_file, O_RDONLY);
 
-  if (fd < 0)
-    PFATAL("Unable to open '%s'", in_file);
+  if (fd < 0) PFATAL("Unable to open '%s'", in_file);
 
-  if (fstat(fd, &st) || !st.st_size)
-    FATAL("Zero-sized input file.");
+  if (fstat(fd, &st) || !st.st_size) FATAL("Zero-sized input file.");
 
   if (st.st_size >= TMIN_MAX_FILE)
     FATAL("Input file is too large (%u MB max)", TMIN_MAX_FILE / 1024 / 1024);
@@ -191,8 +186,7 @@ static s32 write_to_file(u8* path, u8* mem, u32 len) {
 
   ret = open(path, O_RDWR | O_CREAT | O_EXCL, 0600);
 
-  if (ret < 0)
-    PFATAL("Unable to create '%s'", path);
+  if (ret < 0) PFATAL("Unable to create '%s'", path);
 
   ck_write(ret, mem, len, path);
 
@@ -207,8 +201,7 @@ static s32 write_to_file(u8* path, u8* mem, u32 len) {
 static void handle_timeout(int sig) {
 
   child_timed_out = 1;
-  if (child_pid > 0)
-    kill(child_pid, SIGKILL);
+  if (child_pid > 0) kill(child_pid, SIGKILL);
 
 }
 
@@ -230,8 +223,7 @@ static u32 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
 
   child_pid = fork();
 
-  if (child_pid < 0)
-    PFATAL("fork() failed");
+  if (child_pid < 0) PFATAL("fork() failed");
 
   if (!child_pid) {
 
@@ -284,8 +276,7 @@ static u32 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
 
   setitimer(ITIMER_REAL, &it, NULL);
 
-  if (waitpid(child_pid, &status, 0) <= 0)
-    FATAL("waitpid() failed");
+  if (waitpid(child_pid, &status, 0) <= 0) FATAL("waitpid() failed");
 
   child_pid           = 0;
   it.it_value.tv_sec  = 0;
@@ -332,8 +323,7 @@ static u32 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
 
   }
 
-  if (first_run)
-    orig_cksum = cksum;
+  if (first_run) orig_cksum = cksum;
 
   return cksum;
 
@@ -348,12 +338,9 @@ static void show_char(u8 val) {
   switch (val) {
 
     case 0 ... 32:
-    case 127 ... 255:
-      SAYF("#%02x", val);
-      break;
+    case 127 ... 255: SAYF("#%02x", val); break;
 
-    default:
-      SAYF(" %c ", val);
+    default: SAYF(" %c ", val);
 
   }
 
@@ -398,8 +385,7 @@ static void dump_hex(u8* buf, u32 len, u8* b_data) {
 
     while (i + rlen < len && (b_data[i] >> 7) == (b_data[i + rlen] >> 7)) {
 
-      if (rtype < (b_data[i + rlen] & 0x0f))
-        rtype = b_data[i + rlen] & 0x0f;
+      if (rtype < (b_data[i + rlen] & 0x0f)) rtype = b_data[i + rlen] & 0x0f;
       rlen++;
 
     }
@@ -466,11 +452,9 @@ static void dump_hex(u8* buf, u32 len, u8* b_data) {
 
         case 1:
         case 3:
-        case 5 ... MAX_AUTO_EXTRA - 1:
-          break;
+        case 5 ... MAX_AUTO_EXTRA - 1: break;
 
-        default:
-          rtype = RESP_SUSPECT;
+        default: rtype = RESP_SUSPECT;
 
       }
 
@@ -486,8 +470,7 @@ static void dump_hex(u8* buf, u32 len, u8* b_data) {
 
       if (!((i + off) % 16)) {
 
-        if (off)
-          SAYF(cRST cLCY ">");
+        if (off) SAYF(cRST cLCY ">");
 
         if (use_hex_offsets)
           SAYF(cRST cGRA "%s[%06x] " cRST, (i + off) ? "\n" : "", i + off);
@@ -498,27 +481,13 @@ static void dump_hex(u8* buf, u32 len, u8* b_data) {
 
       switch (rtype) {
 
-        case RESP_NONE:
-          SAYF(cLGR bgGRA);
-          break;
-        case RESP_MINOR:
-          SAYF(cBRI bgGRA);
-          break;
-        case RESP_VARIABLE:
-          SAYF(cBLK bgCYA);
-          break;
-        case RESP_FIXED:
-          SAYF(cBLK bgMGN);
-          break;
-        case RESP_LEN:
-          SAYF(cBLK bgLGN);
-          break;
-        case RESP_CKSUM:
-          SAYF(cBLK bgYEL);
-          break;
-        case RESP_SUSPECT:
-          SAYF(cBLK bgLRD);
-          break;
+        case RESP_NONE: SAYF(cLGR bgGRA); break;
+        case RESP_MINOR: SAYF(cBRI bgGRA); break;
+        case RESP_VARIABLE: SAYF(cBLK bgCYA); break;
+        case RESP_FIXED: SAYF(cBLK bgMGN); break;
+        case RESP_LEN: SAYF(cBLK bgLGN); break;
+        case RESP_CKSUM: SAYF(cBLK bgYEL); break;
+        case RESP_SUSPECT: SAYF(cBLK bgLRD); break;
 
       }
 
@@ -540,27 +509,13 @@ static void dump_hex(u8* buf, u32 len, u8* b_data) {
 
     switch (rtype) {
 
-      case RESP_NONE:
-        SAYF("no-op block\n");
-        break;
-      case RESP_MINOR:
-        SAYF("superficial content\n");
-        break;
-      case RESP_VARIABLE:
-        SAYF("critical stream\n");
-        break;
-      case RESP_FIXED:
-        SAYF("\"magic value\" section\n");
-        break;
-      case RESP_LEN:
-        SAYF("suspected length field\n");
-        break;
-      case RESP_CKSUM:
-        SAYF("suspected cksum or magic int\n");
-        break;
-      case RESP_SUSPECT:
-        SAYF("suspected checksummed block\n");
-        break;
+      case RESP_NONE: SAYF("no-op block\n"); break;
+      case RESP_MINOR: SAYF("superficial content\n"); break;
+      case RESP_VARIABLE: SAYF("critical stream\n"); break;
+      case RESP_FIXED: SAYF("\"magic value\" section\n"); break;
+      case RESP_LEN: SAYF("suspected length field\n"); break;
+      case RESP_CKSUM: SAYF("suspected cksum or magic int\n"); break;
+      case RESP_SUSPECT: SAYF("suspected checksummed block\n"); break;
 
     }
 
@@ -638,6 +593,7 @@ static void analyze(char** argv) {
       b_data[i] = RESP_FIXED;
 
     } else
+
       b_data[i] = RESP_VARIABLE;
 
     /* When all checksums change, flip most significant bit of b_data. */
@@ -676,8 +632,7 @@ static void handle_stop_sig(int sig) {
 
   stop_soon = 1;
 
-  if (child_pid > 0)
-    kill(child_pid, SIGKILL);
+  if (child_pid > 0) kill(child_pid, SIGKILL);
 
 }
 
@@ -688,8 +643,7 @@ static void set_up_environment(void) {
   u8* x;
 
   dev_null_fd = open("/dev/null", O_RDWR);
-  if (dev_null_fd < 0)
-    PFATAL("Unable to open /dev/null");
+  if (dev_null_fd < 0) PFATAL("Unable to open /dev/null");
 
   if (!prog_in) {
 
@@ -698,8 +652,7 @@ static void set_up_environment(void) {
     if (access(use_dir, R_OK | W_OK | X_OK)) {
 
       use_dir = getenv("TMPDIR");
-      if (!use_dir)
-        use_dir = "/tmp";
+      if (!use_dir) use_dir = "/tmp";
 
     }
 
@@ -841,6 +794,7 @@ static void find_binary(u8* fname) {
         delim++;
 
       } else
+
         cur_elem = ck_strdup(env_path);
 
       env_path = delim;
@@ -861,8 +815,7 @@ static void find_binary(u8* fname) {
 
     }
 
-    if (!target_path)
-      FATAL("Program '%s' not found or not executable", fname);
+    if (!target_path) FATAL("Program '%s' not found or not executable", fname);
 
   }
 
@@ -888,8 +841,7 @@ static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
 
     cp = alloc_printf("%s/afl-qemu-trace", tmp);
 
-    if (access(cp, X_OK))
-      FATAL("Unable to find '%s'", tmp);
+    if (access(cp, X_OK)) FATAL("Unable to find '%s'", tmp);
 
     target_path = new_argv[0] = cp;
     return new_argv;
@@ -914,6 +866,7 @@ static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
     }
 
   } else
+
     ck_free(own_copy);
 
   if (!access(BIN_PATH "/afl-qemu-trace", X_OK)) {
@@ -945,23 +898,20 @@ int main(int argc, char** argv) {
 
       case 'i':
 
-        if (in_file)
-          FATAL("Multiple -i options not supported");
+        if (in_file) FATAL("Multiple -i options not supported");
         in_file = optarg;
         break;
 
       case 'f':
 
-        if (prog_in)
-          FATAL("Multiple -f options not supported");
+        if (prog_in) FATAL("Multiple -f options not supported");
         use_stdin = 0;
         prog_in   = optarg;
         break;
 
       case 'e':
 
-        if (edges_only)
-          FATAL("Multiple -e options not supported");
+        if (edges_only) FATAL("Multiple -e options not supported");
         edges_only = 1;
         break;
 
@@ -969,8 +919,7 @@ int main(int argc, char** argv) {
 
         u8 suffix = 'M';
 
-        if (mem_limit_given)
-          FATAL("Multiple -m options not supported");
+        if (mem_limit_given) FATAL("Multiple -m options not supported");
         mem_limit_given = 1;
 
         if (!strcmp(optarg, "none")) {
@@ -986,29 +935,19 @@ int main(int argc, char** argv) {
 
         switch (suffix) {
 
-          case 'T':
-            mem_limit *= 1024 * 1024;
-            break;
-          case 'G':
-            mem_limit *= 1024;
-            break;
-          case 'k':
-            mem_limit /= 1024;
-            break;
-          case 'M':
-            break;
+          case 'T': mem_limit *= 1024 * 1024; break;
+          case 'G': mem_limit *= 1024; break;
+          case 'k': mem_limit /= 1024; break;
+          case 'M': break;
 
-          default:
-            FATAL("Unsupported suffix or bad syntax for -m");
+          default: FATAL("Unsupported suffix or bad syntax for -m");
 
         }
 
-        if (mem_limit < 5)
-          FATAL("Dangerously low value of -m");
+        if (mem_limit < 5) FATAL("Dangerously low value of -m");
 
         if (sizeof(rlim_t) == 4 && mem_limit > 2000)
           FATAL("Value of -m out of range on 32-bit systems");
-
 
       }
 
@@ -1016,8 +955,7 @@ int main(int argc, char** argv) {
 
       case 't':
 
-        if (timeout_given)
-          FATAL("Multiple -t options not supported");
+        if (timeout_given) FATAL("Multiple -t options not supported");
         timeout_given = 1;
 
         exec_tmout = atoi(optarg);
@@ -1029,32 +967,25 @@ int main(int argc, char** argv) {
 
       case 'Q':
 
-        if (qemu_mode)
-          FATAL("Multiple -Q options not supported");
-        if (!mem_limit_given)
-          mem_limit = MEM_LIMIT_QEMU;
+        if (qemu_mode) FATAL("Multiple -Q options not supported");
+        if (!mem_limit_given) mem_limit = MEM_LIMIT_QEMU;
 
         qemu_mode = 1;
         break;
 
       case 'U':
 
-        if (unicorn_mode)
-          FATAL("Multiple -U options not supported");
-        if (!mem_limit_given)
-          mem_limit = MEM_LIMIT_UNICORN;
+        if (unicorn_mode) FATAL("Multiple -U options not supported");
+        if (!mem_limit_given) mem_limit = MEM_LIMIT_UNICORN;
 
         unicorn_mode = 1;
         break;
 
-      default:
-
-        usage(argv[0]);
+      default: usage(argv[0]);
 
     }
 
-  if (optind == argc || !in_file)
-    usage(argv[0]);
+  if (optind == argc || !in_file) usage(argv[0]);
 
   use_hex_offsets = !!getenv("AFL_ANALYZE_HEX");
 
@@ -1084,8 +1015,7 @@ int main(int argc, char** argv) {
   if (child_timed_out)
     FATAL("Target binary times out (adjusting -t may help).");
 
-  if (!anything_set())
-    FATAL("No instrumentation detected.");
+  if (!anything_set()) FATAL("No instrumentation detected.");
 
   analyze(use_argv);
 

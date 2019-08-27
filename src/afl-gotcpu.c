@@ -130,8 +130,7 @@ int main(int argc, char** argv) {
 
     s32 fr = fork();
 
-    if (fr < 0)
-      PFATAL("fork failed");
+    if (fr < 0) PFATAL("fork failed");
 
     if (!fr) {
 
@@ -169,13 +168,10 @@ int main(int argc, char** argv) {
   for (i = 0; i < cpu_cnt; i++) {
 
     int ret;
-    if (waitpid(-1, &ret, 0) < 0)
-      PFATAL("waitpid failed");
+    if (waitpid(-1, &ret, 0) < 0) PFATAL("waitpid failed");
 
-    if (WEXITSTATUS(ret) == 0)
-      idle_cpus++;
-    if (WEXITSTATUS(ret) <= 1)
-      maybe_cpus++;
+    if (WEXITSTATUS(ret) == 0) idle_cpus++;
+    if (WEXITSTATUS(ret) <= 1) maybe_cpus++;
 
   }
 

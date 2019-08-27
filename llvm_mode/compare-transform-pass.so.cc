@@ -36,13 +36,11 @@ using namespace llvm;
 
 namespace {
 
-
 class CompareTransform : public ModulePass {
 
  public:
   static char ID;
   CompareTransform() : ModulePass(ID) {
-
 
   }
 
@@ -64,7 +62,9 @@ class CompareTransform : public ModulePass {
                      const bool processMemcmp, const bool processStrncmp,
                      const bool processStrcasecmp,
                      const bool processStrncasecmp);
+
 };
+
 }  // namespace
 
 char CompareTransform::ID = 0;
@@ -117,10 +117,8 @@ bool CompareTransform::transformCmps(Module &M, const bool processStrcmp,
           bool isStrncasecmp = processStrncasecmp;
 
           Function *Callee = callInst->getCalledFunction();
-          if (!Callee)
-            continue;
-          if (callInst->getCallingConv() != llvm::CallingConv::C)
-            continue;
+          if (!Callee) continue;
+          if (callInst->getCallingConv() != llvm::CallingConv::C) continue;
           StringRef FuncName = Callee->getName();
           isStrcmp &= !FuncName.compare(StringRef("strcmp"));
           isMemcmp &= !FuncName.compare(StringRef("memcmp"));
@@ -177,8 +175,7 @@ bool CompareTransform::transformCmps(Module &M, const bool processStrcmp,
           bool      HasStr2 = getConstantStringInfo(Str2P, Str2);
 
           /* handle cases of one string is const, one string is variable */
-          if (!(HasStr1 ^ HasStr2))
-            continue;
+          if (!(HasStr1 ^ HasStr2)) continue;
 
           if (isMemcmp || isStrncmp || isStrncasecmp) {
 
@@ -186,14 +183,12 @@ bool CompareTransform::transformCmps(Module &M, const bool processStrcmp,
              * strlen("constStr") and sizeof() are treated as constant */
             Value *      op2  = callInst->getArgOperand(2);
             ConstantInt *ilen = dyn_cast<ConstantInt>(op2);
-            if (!ilen)
-              continue;
+            if (!ilen) continue;
             /* final precaution: if size of compare is larger than constant
              * string skip it*/
             uint64_t literalLength =
                 HasStr1 ? GetStringLength(Str1P) : GetStringLength(Str2P);
-            if (literalLength < ilen->getZExtValue())
-              continue;
+            if (literalLength < ilen->getZExtValue()) continue;
 
           }
 
@@ -207,8 +202,7 @@ bool CompareTransform::transformCmps(Module &M, const bool processStrcmp,
 
   }
 
-  if (!calls.size())
-    return false;
+  if (!calls.size()) return false;
   errs() << "Replacing " << calls.size()
          << " calls to strcmp/memcmp/strncmp/strcasecmp/strncasecmp\n";
 
@@ -247,6 +241,7 @@ bool CompareTransform::transformCmps(Module &M, const bool processStrcmp,
       TmpConstStr = Str1.str();
       VarStr      = Str2P;
       constLen    = isMemcmp ? sizedLen : GetStringLength(Str1P);
+
     } else {
 
       TmpConstStr = Str2.str();
@@ -261,11 +256,7 @@ bool CompareTransform::transformCmps(Module &M, const bool processStrcmp,
     TmpConstStr.append("\0", 1);
     ConstStr = StringRef(TmpConstStr);
 
-    if (isSizedcmp && constLen > sizedLen) {
-
-      constLen = sizedLen;
-
-    }
+    if (isSizedcmp && constLen > sizedLen) { constLen = sizedLen; }
 
     errs() << callInst->getCalledFunction()->getName() << ": len " << constLen
            << ": " << ConstStr << "\n";
@@ -307,6 +298,7 @@ bool CompareTransform::transformCmps(Module &M, const bool processStrcmp,
         load = IRB.CreateTrunc(load, Int8Ty);
 
       }
+
       Value *isub;
       if (HasStr1)
         isub = IRB.CreateSub(ConstantInt::get(Int8Ty, c), load);
@@ -325,6 +317,7 @@ bool CompareTransform::transformCmps(Module &M, const bool processStrcmp,
         Value *icmp = IRB.CreateICmpEQ(isub, ConstantInt::get(Int8Ty, 0));
         IRB.CreateCondBr(icmp, next_bb, end_bb);
         cur_bb->getTerminator()->eraseFromParent();
+
       } else {
 
         // IRB.CreateBr(end_bb);

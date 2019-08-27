@@ -38,10 +38,14 @@ u8 *forkserver_DMS(u64 val) {
 
 #define CHK_FORMAT(_divisor, _limit_mult, _fmt, _cast)    \
   do {                                                    \
+                                                          \
     if (val < (_divisor) * (_limit_mult)) {               \
+                                                          \
       sprintf(tmp[cur], _fmt, ((_cast)val) / (_divisor)); \
       return tmp[cur];                                    \
+                                                          \
     }                                                     \
+                                                          \
   } while (0)
 
   cur = (cur + 1) % 12;
@@ -95,6 +99,7 @@ void handle_timeout(int sig) {
 
     child_timed_out = 1;
     kill(child_pid, SIGKILL);
+
   } else if (child_pid == -1 && forksrv_pid > 0) {
 
     child_timed_out = 1;
@@ -121,14 +126,12 @@ void init_forkserver(char **argv) {
 
   ACTF("Spinning up the fork server...");
 
-  if (pipe(st_pipe) || pipe(ctl_pipe))
-    PFATAL("pipe() failed");
+  if (pipe(st_pipe) || pipe(ctl_pipe)) PFATAL("pipe() failed");
 
   child_timed_out = 0;
   forksrv_pid     = fork();
 
-  if (forksrv_pid < 0)
-    PFATAL("fork() failed");
+  if (forksrv_pid < 0) PFATAL("fork() failed");
 
   if (!forksrv_pid) {
 
@@ -183,6 +186,7 @@ void init_forkserver(char **argv) {
     if (out_file) {
 
       dup2(dev_null_fd, 0);
+
     } else {
 
       dup2(out_fd, 0);
@@ -192,10 +196,8 @@ void init_forkserver(char **argv) {
 
     /* Set up control and status pipes, close the unneeded original fds. */
 
-    if (dup2(ctl_pipe[0], FORKSRV_FD) < 0)
-      PFATAL("dup2() failed");
-    if (dup2(st_pipe[1], FORKSRV_FD + 1) < 0)
-      PFATAL("dup2() failed");
+    if (dup2(ctl_pipe[0], FORKSRV_FD) < 0) PFATAL("dup2() failed");
+    if (dup2(st_pipe[1], FORKSRV_FD + 1) < 0) PFATAL("dup2() failed");
 
     close(ctl_pipe[0]);
     close(ctl_pipe[1]);
@@ -210,8 +212,7 @@ void init_forkserver(char **argv) {
     /* This should improve performance a bit, since it stops the linker from
        doing extra work post-fork(). */
 
-    if (!getenv("LD_BIND_LAZY"))
-      setenv("LD_BIND_NOW", "1", 0);
+    if (!getenv("LD_BIND_LAZY")) setenv("LD_BIND_NOW", "1", 0);
 
     /* Set sane defaults for ASAN if nothing else specified. */
 
@@ -284,8 +285,7 @@ void init_forkserver(char **argv) {
   if (child_timed_out)
     FATAL("Timeout while initializing fork server (adjusting -t may help)");
 
-  if (waitpid(forksrv_pid, &status, 0) <= 0)
-    PFATAL("waitpid() failed");
+  if (waitpid(forksrv_pid, &status, 0) <= 0) PFATAL("waitpid() failed");
 
   if (WIFSIGNALED(status)) {
 

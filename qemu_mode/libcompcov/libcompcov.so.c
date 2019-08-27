@@ -57,10 +57,7 @@ static size_t __strlen2(const char* s1, const char* s2, size_t max_length) {
   // from https://github.com/googleprojectzero/CompareCoverage
 
   size_t len = 0;
-  for (; len < max_length && s1[len] != '\0' && s2[len] != '\0'; len++) {
-
-
-  }
+  for (; len < max_length && s1[len] != '\0' && s2[len] != '\0'; len++) {}
   return len;
 
 }
@@ -83,8 +80,8 @@ static void __compcov_load(void) {
     shm_id            = atoi(id_str);
     __compcov_afl_map = shmat(shm_id, NULL, 0);
 
-    if (__compcov_afl_map == (void*)-1)
-      exit(1);
+    if (__compcov_afl_map == (void*)-1) exit(1);
+
   } else {
 
     __compcov_afl_map = calloc(1, MAP_SIZE);
@@ -111,10 +108,8 @@ static void __compcov_load(void) {
 
       if (maps_tmp->is_x) {
 
-        if (!__compcov_code_start)
-          __compcov_code_start = maps_tmp->addr_start;
-        if (!__compcov_code_end)
-          __compcov_code_end = maps_tmp->addr_end;
+        if (!__compcov_code_start) __compcov_code_start = maps_tmp->addr_start;
+        if (!__compcov_code_end) __compcov_code_end = maps_tmp->addr_end;
 
       }
 

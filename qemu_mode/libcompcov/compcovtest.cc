@@ -40,30 +40,20 @@ int main() {
 
   uint64_t x = 0;
   fread(&x, sizeof(x), 1, stdin);
-  if (x != 0xCAFEBABECAFEBABE) {
-
-    return 2;
-
-  }
+  if (x != 0xCAFEBABECAFEBABE) { return 2; }
 
   uint32_t y = 0;
   fread(&y, sizeof(y), 1, stdin);
-  if (y != 0xDEADC0DE) {
-
-    return 3;
-
-  }
+  if (y != 0xDEADC0DE) { return 3; }
 
   uint16_t z = 0;
   fread(&z, sizeof(z), 1, stdin);
 
   switch (z) {
 
-    case 0xBEEF:
-      break;
+    case 0xBEEF: break;
 
-    default:
-      return 4;
+    default: return 4;
 
   }
 

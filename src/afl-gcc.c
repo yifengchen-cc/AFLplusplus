@@ -138,6 +138,7 @@ static void edit_params(u32 argc, char** argv) {
 
       u8* alt_cxx  = getenv("AFL_CXX");
       cc_params[0] = alt_cxx ? alt_cxx : (u8*)"clang++";
+
     } else {
 
       u8* alt_cc   = getenv("AFL_CC");
@@ -182,10 +183,12 @@ static void edit_params(u32 argc, char** argv) {
 
       u8* alt_cxx  = getenv("AFL_CXX");
       cc_params[0] = alt_cxx ? alt_cxx : (u8*)"g++";
+
     } else if (!strcmp(name, "afl-gcj")) {
 
       u8* alt_cc   = getenv("AFL_GCJ");
       cc_params[0] = alt_cc ? alt_cc : (u8*)"gcj";
+
     } else {
 
       u8* alt_cc   = getenv("AFL_CC");
@@ -203,8 +206,7 @@ static void edit_params(u32 argc, char** argv) {
 
     if (!strncmp(cur, "-B", 2)) {
 
-      if (!be_quiet)
-        WARNF("-B is already set, overriding");
+      if (!be_quiet) WARNF("-B is already set, overriding");
 
       if (!cur[2] && argc > 1) {
 
@@ -212,26 +214,23 @@ static void edit_params(u32 argc, char** argv) {
         argv++;
 
       }
+
       continue;
 
     }
 
-    if (!strcmp(cur, "-integrated-as"))
-      continue;
+    if (!strcmp(cur, "-integrated-as")) continue;
 
-    if (!strcmp(cur, "-pipe"))
-      continue;
+    if (!strcmp(cur, "-pipe")) continue;
 
 #if defined(__FreeBSD__) && defined(__x86_64__)
-    if (!strcmp(cur, "-m32"))
-      m32_set = 1;
+    if (!strcmp(cur, "-m32")) m32_set = 1;
 #endif
 
     if (!strcmp(cur, "-fsanitize=address") || !strcmp(cur, "-fsanitize=memory"))
       asan_set = 1;
 
-    if (strstr(cur, "FORTIFY_SOURCE"))
-      fortify_set = 1;
+    if (strstr(cur, "FORTIFY_SOURCE")) fortify_set = 1;
 
     cc_params[cc_par_cnt++] = cur;
 
@@ -240,15 +239,13 @@ static void edit_params(u32 argc, char** argv) {
   cc_params[cc_par_cnt++] = "-B";
   cc_params[cc_par_cnt++] = as_path;
 
-  if (clang_mode)
-    cc_params[cc_par_cnt++] = "-no-integrated-as";
+  if (clang_mode) cc_params[cc_par_cnt++] = "-no-integrated-as";
 
   if (getenv("AFL_HARDEN")) {
 
     cc_params[cc_par_cnt++] = "-fstack-protector-all";
 
-    if (!fortify_set)
-      cc_params[cc_par_cnt++] = "-D_FORTIFY_SOURCE=2";
+    if (!fortify_set) cc_params[cc_par_cnt++] = "-D_FORTIFY_SOURCE=2";
 
   }
 
@@ -260,8 +257,7 @@ static void edit_params(u32 argc, char** argv) {
 
   } else if (getenv("AFL_USE_ASAN")) {
 
-    if (getenv("AFL_USE_MSAN"))
-      FATAL("ASAN and MSAN are mutually exclusive");
+    if (getenv("AFL_USE_MSAN")) FATAL("ASAN and MSAN are mutually exclusive");
 
     if (getenv("AFL_HARDEN"))
       FATAL("ASAN and AFL_HARDEN are mutually exclusive");
@@ -271,8 +267,7 @@ static void edit_params(u32 argc, char** argv) {
 
   } else if (getenv("AFL_USE_MSAN")) {
 
-    if (getenv("AFL_USE_ASAN"))
-      FATAL("ASAN and MSAN are mutually exclusive");
+    if (getenv("AFL_USE_ASAN")) FATAL("ASAN and MSAN are mutually exclusive");
 
     if (getenv("AFL_HARDEN"))
       FATAL("MSAN and AFL_HARDEN are mutually exclusive");
@@ -294,8 +289,7 @@ static void edit_params(u32 argc, char** argv) {
        works OK. This has nothing to do with us, but let's avoid triggering
        that bug. */
 
-    if (!clang_mode || !m32_set)
-      cc_params[cc_par_cnt++] = "-g";
+    if (!clang_mode || !m32_set) cc_params[cc_par_cnt++] = "-g";
 
 #else
 
@@ -342,6 +336,7 @@ int main(int argc, char** argv) {
               "options\n");
 
   } else
+
     be_quiet = 1;
 
   if (argc < 2) {
