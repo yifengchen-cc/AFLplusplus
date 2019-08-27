@@ -29,20 +29,20 @@
 #include <sys/mman.h>
 
 #ifndef USEMMAP
- #include <sys/ipc.h>
- #include <sys/shm.h>
+#  include <sys/ipc.h>
+#  include <sys/shm.h>
 #endif
 
-extern unsigned char*trace_bits;
+extern unsigned char *trace_bits;
 
 #ifdef USEMMAP
 /* ================ Proteas ================ */
-int g_shm_fd = -1;
+int            g_shm_fd   = -1;
 unsigned char *g_shm_base = NULL;
-char g_shm_file_path[L_tmpnam];
+char           g_shm_file_path[L_tmpnam];
 /* ========================================= */
 #else
-static s32 shm_id;                    /* ID of the SHM region              */
+static s32 shm_id;                     /* ID of the SHM region              */
 #endif
 
 /* Get rid of shared memory (atexit handler). */
@@ -63,14 +63,14 @@ void remove_shm(void) {
 #endif
 }
 
-
 /* Configure shared memory. */
 
 void setup_shm(unsigned char dumb_mode) {
 #ifdef USEMMAP
   /* generate random file name for multi instance */
 
-  /* thanks to f*cking glibc we can not use tmpnam securely, it generates a security warning that cannot be suppressed */
+  /* thanks to f*cking glibc we can not use tmpnam securely, it generates a
+   * security warning that cannot be suppressed */
   /* so we do this worse workaround */
   snprintf(g_shm_file_path, L_tmpnam, "/afl_%d_%ld", getpid(), random());
 
@@ -86,7 +86,8 @@ void setup_shm(unsigned char dumb_mode) {
   }
 
   /* map the shared memory segment to the address space of the process */
-  g_shm_base = mmap(0, MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, g_shm_fd, 0);
+  g_shm_base =
+      mmap(0, MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, g_shm_fd, 0);
   if (g_shm_base == MAP_FAILED) {
     close(g_shm_fd);
     g_shm_fd = -1;
@@ -100,18 +101,21 @@ void setup_shm(unsigned char dumb_mode) {
      fork server commands. This should be replaced with better auto-detection
      later on, perhaps? */
 
-  if (!dumb_mode) setenv(SHM_ENV_VAR, g_shm_file_path, 1);
+  if (!dumb_mode)
+    setenv(SHM_ENV_VAR, g_shm_file_path, 1);
 
   trace_bits = g_shm_base;
 
-  if (!trace_bits) PFATAL("mmap() failed");
-  
+  if (!trace_bits)
+    PFATAL("mmap() failed");
+
 #else
   u8* shm_str;
 
   shm_id = shmget(IPC_PRIVATE, MAP_SIZE, IPC_CREAT | IPC_EXCL | 0600);
 
-  if (shm_id < 0) PFATAL("shmget() failed");
+  if (shm_id < 0)
+    PFATAL("shmget() failed");
 
   atexit(remove_shm);
 
@@ -124,13 +128,15 @@ void setup_shm(unsigned char dumb_mode) {
      fork server commands. This should be replaced with better auto-detection
      later on, perhaps? */
 
-  if (!dumb_mode) setenv(SHM_ENV_VAR, shm_str, 1);
+  if (!dumb_mode)
+    setenv(SHM_ENV_VAR, shm_str, 1);
 
   ck_free(shm_str);
 
   trace_bits = shmat(shm_id, NULL, 0);
-  
-  if (!trace_bits) PFATAL("shmat() failed");
+
+  if (!trace_bits)
+    PFATAL("shmat() failed");
 
 #endif
 }

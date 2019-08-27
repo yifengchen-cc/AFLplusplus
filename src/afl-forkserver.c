@@ -15,33 +15,33 @@
 #include <sys/resource.h>
 
 /* a program that includes afl-forkserver needs to define these */
-extern u8 uses_asan;
+extern u8  uses_asan;
 extern u8 *trace_bits;
 extern s32 forksrv_pid, child_pid, fsrv_ctl_fd, fsrv_st_fd;
-extern s32 out_fd, out_dir_fd, dev_urandom_fd, dev_null_fd; /* initialize these with -1 */
-extern u32 exec_tmout;
-extern u64 mem_limit;
-extern u8 *out_file, *target_path, *doc_path;
+extern s32 out_fd, out_dir_fd, dev_urandom_fd,
+    dev_null_fd;                                /* initialize these with -1 */
+extern u32   exec_tmout;
+extern u64   mem_limit;
+extern u8 *  out_file, *target_path, *doc_path;
 extern FILE *plot_file;
 
-/* we need this internally but can be defined and read extern in the main source */
+/* we need this internally but can be defined and read extern in the main source
+ */
 u8 child_timed_out;
-
 
 /* Describe integer as memory size. */
 
-u8* forkserver_DMS(u64 val) {
-
+u8 *forkserver_DMS(u64 val) {
   static u8 tmp[12][16];
   static u8 cur;
 
-#define CHK_FORMAT(_divisor, _limit_mult, _fmt, _cast) do { \
-    if (val < (_divisor) * (_limit_mult)) { \
+#define CHK_FORMAT(_divisor, _limit_mult, _fmt, _cast)    \
+  do {                                                    \
+    if (val < (_divisor) * (_limit_mult)) {               \
       sprintf(tmp[cur], _fmt, ((_cast)val) / (_divisor)); \
-      return tmp[cur]; \
-    } \
+      return tmp[cur];                                    \
+    }                                                     \
   } while (0)
-
 
   cur = (cur + 1) % 12;
 
@@ -83,23 +83,19 @@ u8* forkserver_DMS(u64 val) {
   /* 100T+ */
   strcpy(tmp[cur], "infty");
   return tmp[cur];
-
 }
-
-
 
 /* the timeout handler */
 
 void handle_timeout(int sig) {
   if (child_pid > 0) {
-    child_timed_out = 1; 
+    child_timed_out = 1;
     kill(child_pid, SIGKILL);
   } else if (child_pid == -1 && forksrv_pid > 0) {
-    child_timed_out = 1; 
+    child_timed_out = 1;
     kill(forksrv_pid, SIGKILL);
   }
 }
-
 
 /* Spin up fork server (instrumented mode only). The idea is explained here:
 
@@ -110,11 +106,10 @@ void handle_timeout(int sig) {
    through a pipe. The other part of this logic is in afl-as.h / llvm_mode */
 
 void init_forkserver(char **argv) {
-
   static struct itimerval it;
-  int st_pipe[2], ctl_pipe[2];
-  int status;
-  s32 rlen;
+  int                     st_pipe[2], ctl_pipe[2];
+  int                     status;
+  s32                     rlen;
 
   ACTF("Spinning up the fork server...");
 
@@ -122,13 +117,12 @@ void init_forkserver(char **argv) {
     PFATAL("pipe() failed");
 
   child_timed_out = 0;
-  forksrv_pid = fork();
+  forksrv_pid     = fork();
 
   if (forksrv_pid < 0)
     PFATAL("fork() failed");
 
   if (!forksrv_pid) {
-
     /* CHILD PROCESS */
 
     struct rlimit r;
@@ -138,28 +132,28 @@ void init_forkserver(char **argv) {
 
     if (!getrlimit(RLIMIT_NOFILE, &r) && r.rlim_cur < FORKSRV_FD + 2) {
       r.rlim_cur = FORKSRV_FD + 2;
-      setrlimit(RLIMIT_NOFILE, &r); /* Ignore errors */
+      setrlimit(RLIMIT_NOFILE, &r);                        /* Ignore errors */
     }
 
     if (mem_limit) {
       r.rlim_max = r.rlim_cur = ((rlim_t)mem_limit) << 20;
 
 #ifdef RLIMIT_AS
-      setrlimit(RLIMIT_AS, &r); /* Ignore errors */
+      setrlimit(RLIMIT_AS, &r);                            /* Ignore errors */
 #else
       /* This takes care of OpenBSD, which doesn't have RLIMIT_AS, but
          according to reliable sources, RLIMIT_DATA covers anonymous
          maps - so we should be getting good protection against OOM bugs. */
 
-      setrlimit(RLIMIT_DATA, &r); /* Ignore errors */
+      setrlimit(RLIMIT_DATA, &r);                          /* Ignore errors */
 #endif /* ^RLIMIT_AS */
     }
 
     /* Dumping cores is slow and can lead to anomalies if SIGKILL is delivered
        before the dump is complete. */
 
-//    r.rlim_max = r.rlim_cur = 0;
-//    setrlimit(RLIMIT_CORE, &r); /* Ignore errors */
+    //    r.rlim_max = r.rlim_cur = 0;
+    //    setrlimit(RLIMIT_CORE, &r);                      /* Ignore errors */
 
     /* Isolate the process and configure standard descriptors. If out_file is
        specified, stdin is /dev/null; otherwise, out_fd is cloned instead. */
@@ -238,12 +232,12 @@ void init_forkserver(char **argv) {
   close(st_pipe[1]);
 
   fsrv_ctl_fd = ctl_pipe[1];
-  fsrv_st_fd = st_pipe[0];
+  fsrv_st_fd  = st_pipe[0];
 
   /* Wait for the fork server to come up, but don't wait too long. */
 
   if (exec_tmout) {
-    it.it_value.tv_sec = ((exec_tmout * FORK_WAIT_MULT) / 1000);
+    it.it_value.tv_sec  = ((exec_tmout * FORK_WAIT_MULT) / 1000);
     it.it_value.tv_usec = ((exec_tmout * FORK_WAIT_MULT) % 1000) * 1000;
   }
 
@@ -251,7 +245,7 @@ void init_forkserver(char **argv) {
 
   rlen = read(fsrv_st_fd, &status, 4);
 
-  it.it_value.tv_sec = 0;
+  it.it_value.tv_sec  = 0;
   it.it_value.tv_usec = 0;
 
   setitimer(ITIMER_REAL, &it, NULL);
@@ -271,11 +265,10 @@ void init_forkserver(char **argv) {
     PFATAL("waitpid() failed");
 
   if (WIFSIGNALED(status)) {
-
     if (mem_limit && mem_limit < 500 && uses_asan) {
-
-      SAYF("\n" cLRD "[-] " cRST "Whoops, the target binary crashed suddenly, "
-                                 "before receiving any input\n"
+      SAYF("\n" cLRD "[-] " cRST
+           "Whoops, the target binary crashed suddenly, "
+           "before receiving any input\n"
            "    from the fuzzer! Since it seems to be built with ASAN and you "
            "have a\n"
            "    restrictive memory limit configured, this is expected; please "
@@ -284,9 +277,9 @@ void init_forkserver(char **argv) {
            doc_path);
 
     } else if (!mem_limit) {
-
-      SAYF("\n" cLRD "[-] " cRST "Whoops, the target binary crashed suddenly, "
-                                 "before receiving any input\n"
+      SAYF("\n" cLRD "[-] " cRST
+           "Whoops, the target binary crashed suddenly, "
+           "before receiving any input\n"
            "    from the fuzzer! There are several probable explanations:\n\n"
 
            "    - The binary is just buggy and explodes entirely on its own. "
@@ -302,9 +295,9 @@ void init_forkserver(char **argv) {
            "tips.\n");
 
     } else {
-
-      SAYF("\n" cLRD "[-] " cRST "Whoops, the target binary crashed suddenly, "
-                                 "before receiving any input\n"
+      SAYF("\n" cLRD "[-] " cRST
+           "Whoops, the target binary crashed suddenly, "
+           "before receiving any input\n"
            "    from the fuzzer! There are several probable explanations:\n\n"
 
            "    - The current memory limit (%s) is too restrictive, causing "
@@ -315,7 +308,8 @@ void init_forkserver(char **argv) {
            "way confirm\n"
            "      this diagnosis would be:\n\n"
 
-           MSG_ULIMIT_USAGE " /path/to/fuzzed_app )\n\n"
+           MSG_ULIMIT_USAGE
+           " /path/to/fuzzed_app )\n\n"
 
            "      Tip: you can use http://jwilk.net/software/recidivm to "
            "quickly\n"
@@ -343,9 +337,9 @@ void init_forkserver(char **argv) {
     FATAL("Unable to execute target application ('%s')", argv[0]);
 
   if (mem_limit && mem_limit < 500 && uses_asan) {
-
-    SAYF("\n" cLRD "[-] " cRST "Hmm, looks like the target binary terminated "
-                               "before we could complete a\n"
+    SAYF("\n" cLRD "[-] " cRST
+         "Hmm, looks like the target binary terminated "
+         "before we could complete a\n"
          "    handshake with the injected code. Since it seems to be built "
          "with ASAN and\n"
          "    you have a restrictive memory limit configured, this is "
@@ -354,19 +348,19 @@ void init_forkserver(char **argv) {
          doc_path);
 
   } else if (!mem_limit) {
-
-    SAYF("\n" cLRD "[-] " cRST "Hmm, looks like the target binary terminated "
-                               "before we could complete a\n"
+    SAYF("\n" cLRD "[-] " cRST
+         "Hmm, looks like the target binary terminated "
+         "before we could complete a\n"
          "    handshake with the injected code. Perhaps there is a horrible "
          "bug in the\n"
          "    fuzzer. Poke <afl-users@googlegroups.com> for troubleshooting "
          "tips.\n");
 
   } else {
-
     SAYF(
-        "\n" cLRD "[-] " cRST "Hmm, looks like the target binary terminated "
-                              "before we could complete a\n"
+        "\n" cLRD "[-] " cRST
+        "Hmm, looks like the target binary terminated "
+        "before we could complete a\n"
         "    handshake with the injected code. There are %s probable "
         "explanations:\n\n"
 
@@ -377,7 +371,8 @@ void init_forkserver(char **argv) {
         "option. A\n"
         "      simple way to confirm the diagnosis may be:\n\n"
 
-        MSG_ULIMIT_USAGE " /path/to/fuzzed_app )\n\n"
+        MSG_ULIMIT_USAGE
+        " /path/to/fuzzed_app )\n\n"
 
         "      Tip: you can use http://jwilk.net/software/recidivm to quickly\n"
         "      estimate the required amount of virtual memory for the "

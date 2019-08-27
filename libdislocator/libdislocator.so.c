@@ -38,23 +38,25 @@
 
 /* Error / message handling: */
 
-#define DEBUGF(_x...) do { \
-    if (alloc_verbose) { \
-      if (++call_depth == 1) { \
+#define DEBUGF(_x...)                 \
+  do {                                \
+    if (alloc_verbose) {              \
+      if (++call_depth == 1) {        \
         fprintf(stderr, "[AFL] " _x); \
-        fprintf(stderr, "\n"); \
-      } \
-      call_depth--; \
-    } \
+        fprintf(stderr, "\n");        \
+      }                               \
+      call_depth--;                   \
+    }                                 \
   } while (0)
 
-#define FATAL(_x...) do { \
-    if (++call_depth == 1) { \
+#define FATAL(_x...)                    \
+  do {                                  \
+    if (++call_depth == 1) {            \
       fprintf(stderr, "*** [AFL] " _x); \
-      fprintf(stderr, " ***\n"); \
-      abort(); \
-    } \
-    call_depth--; \
+      fprintf(stderr, " ***\n");        \
+      abort();                          \
+    }                                   \
+    call_depth--;                       \
   } while (0)
 
 /* Macro to count the number of pages needed to store a buffer: */
@@ -63,7 +65,7 @@
 
 /* Canary & clobber bytes: */
 
-#define ALLOC_CANARY  0xAACCAACC
+#define ALLOC_CANARY 0xAACCAACC
 #define ALLOC_CLOBBER 0xCC
 
 #define PTR_C(_p) (((u32*)(_p))[-1])
@@ -73,13 +75,12 @@
 
 static u32 max_mem = MAX_ALLOC;         /* Max heap usage to permit         */
 static u8  alloc_verbose,               /* Additional debug messages        */
-           hard_fail,                   /* abort() when max_mem exceeded?   */
-           no_calloc_over;              /* abort() on calloc() overflows?   */
+    hard_fail,                          /* abort() when max_mem exceeded?   */
+    no_calloc_over;                     /* abort() on calloc() overflows?   */
 
 static __thread size_t total_mem;       /* Currently allocated mem          */
 
 static __thread u32 call_depth;         /* To avoid recursion via fprintf() */
-
 
 /* This is the main alloc function. It allocates one page more than necessary,
    sets that tailing page to PROT_NONE, and then increments the return address
@@ -87,20 +88,15 @@ static __thread u32 call_depth;         /* To avoid recursion via fprintf() */
    the returned memory will be zeroed. */
 
 static void* __dislocator_alloc(size_t len) {
-
   void* ret;
 
-
   if (total_mem + len > max_mem || total_mem + len < total_mem) {
-
     if (hard_fail)
       FATAL("total allocs exceed %u MB", max_mem / 1024 / 1024);
 
-    DEBUGF("total allocs exceed %u MB, returning NULL",
-           max_mem / 1024 / 1024);
+    DEBUGF("total allocs exceed %u MB, returning NULL", max_mem / 1024 / 1024);
 
     return NULL;
-
   }
 
   /* We will also store buffer length and a canary below the actual buffer, so
@@ -110,13 +106,12 @@ static void* __dislocator_alloc(size_t len) {
              MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
   if (ret == (void*)-1) {
-
-    if (hard_fail) FATAL("mmap() failed on alloc (OOM?)");
+    if (hard_fail)
+      FATAL("mmap() failed on alloc (OOM?)");
 
     DEBUGF("mmap() failed on alloc (OOM?)");
 
     return NULL;
-
   }
 
   /* Set PROT_NONE on the last page. */
@@ -139,15 +134,12 @@ static void* __dislocator_alloc(size_t len) {
   total_mem += len;
 
   return ret;
-
 }
-
 
 /* The "user-facing" wrapper for calloc(). This just checks for overflows and
    displays debug messages if requested. */
 
 void* calloc(size_t elem_len, size_t elem_cnt) {
-
   void* ret;
 
   size_t len = elem_len * elem_cnt;
@@ -155,14 +147,13 @@ void* calloc(size_t elem_len, size_t elem_cnt) {
   /* Perform some sanity checks to detect obvious issues... */
 
   if (elem_cnt && len / elem_cnt != elem_len) {
-
     if (no_calloc_over) {
-      DEBUGF("calloc(%zu, %zu) would overflow, returning NULL", elem_len, elem_cnt);
+      DEBUGF("calloc(%zu, %zu) would overflow, returning NULL", elem_len,
+             elem_cnt);
       return NULL;
     }
 
     FATAL("calloc(%zu, %zu) would overflow", elem_len, elem_cnt);
-
   }
 
   ret = __dislocator_alloc(len);
@@ -171,42 +162,39 @@ void* calloc(size_t elem_len, size_t elem_cnt) {
          total_mem);
 
   return ret;
-
 }
-
 
 /* The wrapper for malloc(). Roughly the same, also clobbers the returned
    memory (unlike calloc(), malloc() is not guaranteed to return zeroed
    memory). */
 
 void* malloc(size_t len) {
-
   void* ret;
 
   ret = __dislocator_alloc(len);
 
   DEBUGF("malloc(%zu) = %p [%zu total]", len, ret, total_mem);
 
-  if (ret && len) memset(ret, ALLOC_CLOBBER, len);
+  if (ret && len)
+    memset(ret, ALLOC_CLOBBER, len);
 
   return ret;
-
 }
-
 
 /* The wrapper for free(). This simply marks the entire region as PROT_NONE.
    If the region is already freed, the code will segfault during the attempt to
    read the canary. Not very graceful, but works, right? */
 
 void free(void* ptr) {
-
   u32 len;
 
   DEBUGF("free(%p)", ptr);
 
-  if (!ptr) return;
+  if (!ptr)
+    return;
 
-  if (PTR_C(ptr) != ALLOC_CANARY) FATAL("bad allocator canary on free()");
+  if (PTR_C(ptr) != ALLOC_CANARY)
+    FATAL("bad allocator canary on free()");
 
   len = PTR_L(ptr);
 
@@ -221,48 +209,40 @@ void free(void* ptr) {
     FATAL("mprotect() failed when freeing memory");
 
   /* Keep the mapping; this is wasteful, but prevents ptr reuse. */
-
 }
-
 
 /* Realloc is pretty straightforward, too. We forcibly reallocate the buffer,
    move data, and then free (aka mprotect()) the original one. */
 
 void* realloc(void* ptr, size_t len) {
-
   void* ret;
 
   ret = malloc(len);
 
   if (ret && ptr) {
-
-    if (PTR_C(ptr) != ALLOC_CANARY) FATAL("bad allocator canary on realloc()");
+    if (PTR_C(ptr) != ALLOC_CANARY)
+      FATAL("bad allocator canary on realloc()");
 
     memcpy(ret, ptr, MIN(len, PTR_L(ptr)));
     free(ptr);
-
   }
 
   DEBUGF("realloc(%p, %zu) = %p [%zu total]", ptr, len, ret, total_mem);
 
   return ret;
-
 }
 
-
 __attribute__((constructor)) void __dislocator_init(void) {
-
   u8* tmp = getenv("AFL_LD_LIMIT_MB");
 
   if (tmp) {
-
     max_mem = atoi(tmp) * 1024 * 1024;
-    if (!max_mem) FATAL("Bad value for AFL_LD_LIMIT_MB");
-
+    if (!max_mem)
+      FATAL("Bad value for AFL_LD_LIMIT_MB");
   }
 
-  alloc_verbose = !!getenv("AFL_LD_VERBOSE");
-  hard_fail = !!getenv("AFL_LD_HARD_FAIL");
+  alloc_verbose  = !!getenv("AFL_LD_VERBOSE");
+  hard_fail      = !!getenv("AFL_LD_HARD_FAIL");
   no_calloc_over = !!getenv("AFL_LD_NO_CALLOC_OVER");
-
 }
+
