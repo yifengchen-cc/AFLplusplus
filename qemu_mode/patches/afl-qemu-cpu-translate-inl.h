@@ -47,57 +47,87 @@ void tcg_gen_afl_compcov_log_call(void *func, target_ulong cur_loc,
 
 static void afl_compcov_log_16(target_ulong cur_loc, target_ulong arg1,
                                target_ulong arg2) {
+
   if ((arg1 & 0xff) == (arg2 & 0xff)) {
+
     afl_area_ptr[cur_loc]++;
+
   }
+
 }
 
 static void afl_compcov_log_32(target_ulong cur_loc, target_ulong arg1,
                                target_ulong arg2) {
+
   if ((arg1 & 0xff) == (arg2 & 0xff)) {
+
     afl_area_ptr[cur_loc]++;
     if ((arg1 & 0xffff) == (arg2 & 0xffff)) {
+
       afl_area_ptr[cur_loc + 1]++;
       if ((arg1 & 0xffffff) == (arg2 & 0xffffff)) {
+
         afl_area_ptr[cur_loc + 2]++;
+
       }
+
     }
+
   }
+
 }
 
 static void afl_compcov_log_64(target_ulong cur_loc, target_ulong arg1,
                                target_ulong arg2) {
+
   if ((arg1 & 0xff) == (arg2 & 0xff)) {
+
     afl_area_ptr[cur_loc]++;
     if ((arg1 & 0xffff) == (arg2 & 0xffff)) {
+
       afl_area_ptr[cur_loc + 1]++;
       if ((arg1 & 0xffffff) == (arg2 & 0xffffff)) {
+
         afl_area_ptr[cur_loc + 2]++;
         if ((arg1 & 0xffffffff) == (arg2 & 0xffffffff)) {
+
           afl_area_ptr[cur_loc + 3]++;
           if ((arg1 & 0xffffffffff) == (arg2 & 0xffffffffff)) {
+
             afl_area_ptr[cur_loc + 4]++;
             if ((arg1 & 0xffffffffffff) == (arg2 & 0xffffffffffff)) {
+
               afl_area_ptr[cur_loc + 5]++;
               if ((arg1 & 0xffffffffffffff) == (arg2 & 0xffffffffffffff)) {
+
                 afl_area_ptr[cur_loc + 6]++;
+
               }
+
             }
+
           }
+
         }
+
       }
+
     }
+
   }
+
 }
 
 static void afl_gen_compcov(target_ulong cur_loc, TCGv_i64 arg1, TCGv_i64 arg2,
                             TCGMemOp ot) {
+
   void *func;
 
   if (!afl_enable_compcov || cur_loc > afl_end_code || cur_loc < afl_start_code)
     return;
 
   switch (ot) {
+
     case MO_64:
       func = &afl_compcov_log_64;
       break;
@@ -109,6 +139,7 @@ static void afl_gen_compcov(target_ulong cur_loc, TCGv_i64 arg1, TCGv_i64 arg2,
       break;
     default:
       return;
+
   }
 
   cur_loc = (cur_loc >> 4) ^ (cur_loc << 8);
@@ -118,5 +149,6 @@ static void afl_gen_compcov(target_ulong cur_loc, TCGv_i64 arg1, TCGv_i64 arg2,
     return;
 
   tcg_gen_afl_compcov_log_call(func, cur_loc, arg1, arg2);
+
 }
 

@@ -32,6 +32,7 @@ u8 child_timed_out;
 /* Describe integer as memory size. */
 
 u8 *forkserver_DMS(u64 val) {
+
   static u8 tmp[12][16];
   static u8 cur;
 
@@ -83,18 +84,24 @@ u8 *forkserver_DMS(u64 val) {
   /* 100T+ */
   strcpy(tmp[cur], "infty");
   return tmp[cur];
+
 }
 
 /* the timeout handler */
 
 void handle_timeout(int sig) {
+
   if (child_pid > 0) {
+
     child_timed_out = 1;
     kill(child_pid, SIGKILL);
   } else if (child_pid == -1 && forksrv_pid > 0) {
+
     child_timed_out = 1;
     kill(forksrv_pid, SIGKILL);
+
   }
+
 }
 
 /* Spin up fork server (instrumented mode only). The idea is explained here:
@@ -106,6 +113,7 @@ void handle_timeout(int sig) {
    through a pipe. The other part of this logic is in afl-as.h / llvm_mode */
 
 void init_forkserver(char **argv) {
+
   static struct itimerval it;
   int                     st_pipe[2], ctl_pipe[2];
   int                     status;
@@ -123,6 +131,7 @@ void init_forkserver(char **argv) {
     PFATAL("fork() failed");
 
   if (!forksrv_pid) {
+
     /* CHILD PROCESS */
 
     struct rlimit r;
@@ -131,11 +140,14 @@ void init_forkserver(char **argv) {
        soft 128. Let's try to fix that... */
 
     if (!getrlimit(RLIMIT_NOFILE, &r) && r.rlim_cur < FORKSRV_FD + 2) {
+
       r.rlim_cur = FORKSRV_FD + 2;
       setrlimit(RLIMIT_NOFILE, &r);                        /* Ignore errors */
+
     }
 
     if (mem_limit) {
+
       r.rlim_max = r.rlim_cur = ((rlim_t)mem_limit) << 20;
 
 #ifdef RLIMIT_AS
@@ -147,6 +159,7 @@ void init_forkserver(char **argv) {
 
       setrlimit(RLIMIT_DATA, &r);                          /* Ignore errors */
 #endif /* ^RLIMIT_AS */
+
     }
 
     /* Dumping cores is slow and can lead to anomalies if SIGKILL is delivered
@@ -161,15 +174,20 @@ void init_forkserver(char **argv) {
     setsid();
 
     if (!getenv("AFL_DEBUG_CHILD_OUTPUT")) {
+
       dup2(dev_null_fd, 1);
       dup2(dev_null_fd, 2);
+
     }
 
     if (out_file) {
+
       dup2(dev_null_fd, 0);
     } else {
+
       dup2(out_fd, 0);
       close(out_fd);
+
     }
 
     /* Set up control and status pipes, close the unneeded original fds. */
@@ -222,6 +240,7 @@ void init_forkserver(char **argv) {
 
     *(u32 *)trace_bits = EXEC_FAIL_SIG;
     exit(0);
+
   }
 
   /* PARENT PROCESS */
@@ -237,8 +256,10 @@ void init_forkserver(char **argv) {
   /* Wait for the fork server to come up, but don't wait too long. */
 
   if (exec_tmout) {
+
     it.it_value.tv_sec  = ((exec_tmout * FORK_WAIT_MULT) / 1000);
     it.it_value.tv_usec = ((exec_tmout * FORK_WAIT_MULT) % 1000) * 1000;
+
   }
 
   setitimer(ITIMER_REAL, &it, NULL);
@@ -254,8 +275,10 @@ void init_forkserver(char **argv) {
      Otherwise, try to figure out what went wrong. */
 
   if (rlen == 4) {
+
     OKF("All right - fork server is up.");
     return;
+
   }
 
   if (child_timed_out)
@@ -265,7 +288,9 @@ void init_forkserver(char **argv) {
     PFATAL("waitpid() failed");
 
   if (WIFSIGNALED(status)) {
+
     if (mem_limit && mem_limit < 500 && uses_asan) {
+
       SAYF("\n" cLRD "[-] " cRST
            "Whoops, the target binary crashed suddenly, "
            "before receiving any input\n"
@@ -277,6 +302,7 @@ void init_forkserver(char **argv) {
            doc_path);
 
     } else if (!mem_limit) {
+
       SAYF("\n" cLRD "[-] " cRST
            "Whoops, the target binary crashed suddenly, "
            "before receiving any input\n"
@@ -295,6 +321,7 @@ void init_forkserver(char **argv) {
            "tips.\n");
 
     } else {
+
       SAYF("\n" cLRD "[-] " cRST
            "Whoops, the target binary crashed suddenly, "
            "before receiving any input\n"
@@ -328,15 +355,18 @@ void init_forkserver(char **argv) {
            "      fail, poke <afl-users@googlegroups.com> for troubleshooting "
            "tips.\n",
            forkserver_DMS(mem_limit << 20), mem_limit - 1);
+
     }
 
     FATAL("Fork server crashed with signal %d", WTERMSIG(status));
+
   }
 
   if (*(u32 *)trace_bits == EXEC_FAIL_SIG)
     FATAL("Unable to execute target application ('%s')", argv[0]);
 
   if (mem_limit && mem_limit < 500 && uses_asan) {
+
     SAYF("\n" cLRD "[-] " cRST
          "Hmm, looks like the target binary terminated "
          "before we could complete a\n"
@@ -348,6 +378,7 @@ void init_forkserver(char **argv) {
          doc_path);
 
   } else if (!mem_limit) {
+
     SAYF("\n" cLRD "[-] " cRST
          "Hmm, looks like the target binary terminated "
          "before we could complete a\n"
@@ -357,6 +388,7 @@ void init_forkserver(char **argv) {
          "tips.\n");
 
   } else {
+
     SAYF(
         "\n" cLRD "[-] " cRST
         "Hmm, looks like the target binary terminated "
@@ -389,8 +421,10 @@ void init_forkserver(char **argv) {
               "      reached before the program terminates.\n\n"
             : "",
         forkserver_DMS(mem_limit << 20), mem_limit - 1);
+
   }
 
   FATAL("Fork server handshake failed");
+
 }
 

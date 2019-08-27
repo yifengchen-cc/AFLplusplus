@@ -91,6 +91,7 @@ static volatile u8 stop_soon,          /* Ctrl-C pressed?                   */
 
 static u8 count_class_lookup[256] = {
 
+
     [0]           = 0,
     [1]           = 1,
     [2]           = 2,
@@ -104,26 +105,36 @@ static u8 count_class_lookup[256] = {
 };
 
 static void classify_counts(u8* mem) {
+
   u32 i = MAP_SIZE;
 
   if (edges_only) {
+
     while (i--) {
+
       if (*mem)
         *mem = 1;
       mem++;
+
     }
 
   } else {
+
     while (i--) {
+
       *mem = count_class_lookup[*mem];
       mem++;
+
     }
+
   }
+
 }
 
 /* See if any bytes are set in the bitmap. */
 
 static inline u8 anything_set(void) {
+
   u32* ptr = (u32*)trace_bits;
   u32  i   = (MAP_SIZE >> 2);
 
@@ -132,17 +143,21 @@ static inline u8 anything_set(void) {
       return 1;
 
   return 0;
+
 }
 
 /* Get rid of temp files (atexit handler). */
 
 static void at_exit_handler(void) {
+
   unlink(prog_in);                                         /* Ignore errors */
+
 }
 
 /* Read initial file. */
 
 static void read_initial_file(void) {
+
   struct stat st;
   s32         fd = open(in_file, O_RDONLY);
 
@@ -163,11 +178,13 @@ static void read_initial_file(void) {
   close(fd);
 
   OKF("Read %u byte%s from '%s'.", in_len, in_len == 1 ? "" : "s", in_file);
+
 }
 
 /* Write output file. */
 
 static s32 write_to_file(u8* path, u8* mem, u32 len) {
+
   s32 ret;
 
   unlink(path);                                            /* Ignore errors */
@@ -182,20 +199,24 @@ static s32 write_to_file(u8* path, u8* mem, u32 len) {
   lseek(ret, 0, SEEK_SET);
 
   return ret;
+
 }
 
 /* Handle timeout signal. */
 
 static void handle_timeout(int sig) {
+
   child_timed_out = 1;
   if (child_pid > 0)
     kill(child_pid, SIGKILL);
+
 }
 
 /* Execute target application. Returns exec checksum, or 0 if program
    times out. */
 
 static u32 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
+
   static struct itimerval it;
   int                     status = 0;
 
@@ -213,18 +234,22 @@ static u32 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
     PFATAL("fork() failed");
 
   if (!child_pid) {
+
     struct rlimit r;
 
     if (dup2(use_stdin ? prog_in_fd : dev_null_fd, 0) < 0 ||
         dup2(dev_null_fd, 1) < 0 || dup2(dev_null_fd, 2) < 0) {
+
       *(u32*)trace_bits = EXEC_FAIL_SIG;
       PFATAL("dup2() failed");
+
     }
 
     close(dev_null_fd);
     close(prog_in_fd);
 
     if (mem_limit) {
+
       r.rlim_max = r.rlim_cur = ((rlim_t)mem_limit) << 20;
 
 #ifdef RLIMIT_AS
@@ -236,6 +261,7 @@ static u32 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
       setrlimit(RLIMIT_DATA, &r);                          /* Ignore errors */
 
 #endif /* ^RLIMIT_AS */
+
     }
 
     r.rlim_max = r.rlim_cur = 0;
@@ -245,6 +271,7 @@ static u32 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
 
     *(u32*)trace_bits = EXEC_FAIL_SIG;
     exit(0);
+
   }
 
   close(prog_in_fd);
@@ -277,15 +304,19 @@ static u32 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
   total_execs++;
 
   if (stop_soon) {
+
     SAYF(cRST cLRD "\n+++ Analysis aborted by user +++\n" cRST);
     exit(1);
+
   }
 
   /* Always discard inputs that time out. */
 
   if (child_timed_out) {
+
     exec_hangs++;
     return 0;
+
   }
 
   cksum = hash32(trace_bits, MAP_SIZE, HASH_CONST);
@@ -296,13 +327,16 @@ static u32 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
   if (WIFSIGNALED(status) ||
       (WIFEXITED(status) && WEXITSTATUS(status) == MSAN_ERROR) ||
       (WIFEXITED(status) && WEXITSTATUS(status))) {
+
     cksum ^= 0xffffffff;
+
   }
 
   if (first_run)
     orig_cksum = cksum;
 
   return cksum;
+
 }
 
 #ifdef USE_COLOR
@@ -310,7 +344,9 @@ static u32 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
 /* Helper function to display a human-readable character. */
 
 static void show_char(u8 val) {
+
   switch (val) {
+
     case 0 ... 32:
     case 127 ... 255:
       SAYF("#%02x", val);
@@ -318,12 +354,15 @@ static void show_char(u8 val) {
 
     default:
       SAYF(" %c ", val);
+
   }
+
 }
 
 /* Show the legend */
 
 static void show_legend(void) {
+
   SAYF("    " cLGR bgGRA " 01 " cRST " - no-op block              " cBLK bgLGN
        " 01 " cRST
        " - suspected length field\n"
@@ -334,6 +373,7 @@ static void show_legend(void) {
        " 01 " cRST
        " - suspected checksummed block\n"
        "    " cBLK bgMGN " 01 " cRST " - \"magic value\" section\n\n");
+
 }
 
 #endif /* USE_COLOR */
@@ -341,9 +381,11 @@ static void show_legend(void) {
 /* Interpret and report a pattern in the input file. */
 
 static void dump_hex(u8* buf, u32 len, u8* b_data) {
+
   u32 i;
 
   for (i = 0; i < len; i++) {
+
 #ifdef USE_COLOR
     u32 rlen = 1, off;
 #else
@@ -355,43 +397,56 @@ static void dump_hex(u8* buf, u32 len, u8* b_data) {
     /* Look ahead to determine the length of run. */
 
     while (i + rlen < len && (b_data[i] >> 7) == (b_data[i + rlen] >> 7)) {
+
       if (rtype < (b_data[i + rlen] & 0x0f))
         rtype = b_data[i + rlen] & 0x0f;
       rlen++;
+
     }
 
     /* Try to do some further classification based on length & value. */
 
     if (rtype == RESP_FIXED) {
+
       switch (rlen) {
+
         case 2: {
+
           u16 val = *(u16*)(in_data + i);
 
           /* Small integers may be length fields. */
 
           if (val && (val <= in_len || SWAP16(val) <= in_len)) {
+
             rtype = RESP_LEN;
             break;
+
           }
 
           /* Uniform integers may be checksums. */
 
           if (val && abs(in_data[i] - in_data[i + 1]) > 32) {
+
             rtype = RESP_CKSUM;
             break;
+
           }
 
           break;
+
         }
 
         case 4: {
+
           u32 val = *(u32*)(in_data + i);
 
           /* Small integers may be length fields. */
 
           if (val && (val <= in_len || SWAP32(val) <= in_len)) {
+
             rtype = RESP_LEN;
             break;
+
           }
 
           /* Uniform integers may be checksums. */
@@ -399,11 +454,14 @@ static void dump_hex(u8* buf, u32 len, u8* b_data) {
           if (val && (in_data[i] >> 7 != in_data[i + 1] >> 7 ||
                       in_data[i] >> 7 != in_data[i + 2] >> 7 ||
                       in_data[i] >> 7 != in_data[i + 3] >> 7)) {
+
             rtype = RESP_CKSUM;
             break;
+
           }
 
           break;
+
         }
 
         case 1:
@@ -413,7 +471,9 @@ static void dump_hex(u8* buf, u32 len, u8* b_data) {
 
         default:
           rtype = RESP_SUSPECT;
+
       }
+
     }
 
     /* Print out the entire run. */
@@ -421,9 +481,11 @@ static void dump_hex(u8* buf, u32 len, u8* b_data) {
 #ifdef USE_COLOR
 
     for (off = 0; off < rlen; off++) {
+
       /* Every 16 digits, display offset. */
 
       if (!((i + off) % 16)) {
+
         if (off)
           SAYF(cRST cLCY ">");
 
@@ -431,9 +493,11 @@ static void dump_hex(u8* buf, u32 len, u8* b_data) {
           SAYF(cRST cGRA "%s[%06x] " cRST, (i + off) ? "\n" : "", i + off);
         else
           SAYF(cRST cGRA "%s[%06u] " cRST, (i + off) ? "\n" : "", i + off);
+
       }
 
       switch (rtype) {
+
         case RESP_NONE:
           SAYF(cLGR bgGRA);
           break;
@@ -455,6 +519,7 @@ static void dump_hex(u8* buf, u32 len, u8* b_data) {
         case RESP_SUSPECT:
           SAYF(cBLK bgLRD);
           break;
+
       }
 
       show_char(in_data[i + off]);
@@ -463,6 +528,7 @@ static void dump_hex(u8* buf, u32 len, u8* b_data) {
         SAYF(" ");
       else
         SAYF(cRST " ");
+
     }
 
 #else
@@ -473,6 +539,7 @@ static void dump_hex(u8* buf, u32 len, u8* b_data) {
       SAYF("    Offset %u, length %u: ", i, rlen);
 
     switch (rtype) {
+
       case RESP_NONE:
         SAYF("no-op block\n");
         break;
@@ -494,21 +561,25 @@ static void dump_hex(u8* buf, u32 len, u8* b_data) {
       case RESP_SUSPECT:
         SAYF("suspected checksummed block\n");
         break;
+
     }
 
 #endif /* ^USE_COLOR */
 
     i += rlen - 1;
+
   }
 
 #ifdef USE_COLOR
   SAYF(cRST "\n");
 #endif /* USE_COLOR */
+
 }
 
 /* Actually analyze! */
 
 static void analyze(char** argv) {
+
   u32 i;
   u32 boring_len = 0, prev_xff = 0, prev_x01 = 0, prev_s10 = 0, prev_a10 = 0;
 
@@ -524,6 +595,7 @@ static void analyze(char** argv) {
 #endif /* USE_COLOR */
 
   for (i = 0; i < in_len; i++) {
+
     u32 xor_ff, xor_01, sub_10, add_10;
     u8  xff_orig, x01_orig, s10_orig, a10_orig;
 
@@ -552,14 +624,17 @@ static void analyze(char** argv) {
     a10_orig = (add_10 == orig_cksum);
 
     if (xff_orig && x01_orig && s10_orig && a10_orig) {
+
       b_data[i] = RESP_NONE;
       boring_len++;
 
     } else if (xff_orig || x01_orig || s10_orig || a10_orig) {
+
       b_data[i] = RESP_MINOR;
       boring_len++;
 
     } else if (xor_ff == xor_01 && xor_ff == sub_10 && xor_ff == add_10) {
+
       b_data[i] = RESP_FIXED;
 
     } else
@@ -577,6 +652,7 @@ static void analyze(char** argv) {
     prev_x01 = xor_01;
     prev_s10 = sub_10;
     prev_a10 = add_10;
+
   }
 
   dump_hex(in_data, in_len, b_data);
@@ -591,20 +667,24 @@ static void analyze(char** argv) {
           exec_hangs);
 
   ck_free(b_data);
+
 }
 
 /* Handle Ctrl-C and the like. */
 
 static void handle_stop_sig(int sig) {
+
   stop_soon = 1;
 
   if (child_pid > 0)
     kill(child_pid, SIGKILL);
+
 }
 
 /* Do basic preparations - persistent fds, filenames, etc. */
 
 static void set_up_environment(void) {
+
   u8* x;
 
   dev_null_fd = open("/dev/null", O_RDWR);
@@ -612,15 +692,19 @@ static void set_up_environment(void) {
     PFATAL("Unable to open /dev/null");
 
   if (!prog_in) {
+
     u8* use_dir = ".";
 
     if (access(use_dir, R_OK | W_OK | X_OK)) {
+
       use_dir = getenv("TMPDIR");
       if (!use_dir)
         use_dir = "/tmp";
+
     }
 
     prog_in = alloc_printf("%s/.afl-analyze-temp-%u", use_dir, getpid());
+
   }
 
   /* Set sane defaults... */
@@ -628,22 +712,26 @@ static void set_up_environment(void) {
   x = getenv("ASAN_OPTIONS");
 
   if (x) {
+
     if (!strstr(x, "abort_on_error=1"))
       FATAL("Custom ASAN_OPTIONS set without abort_on_error=1 - please fix!");
 
     if (!strstr(x, "symbolize=0"))
       FATAL("Custom ASAN_OPTIONS set without symbolize=0 - please fix!");
+
   }
 
   x = getenv("MSAN_OPTIONS");
 
   if (x) {
+
     if (!strstr(x, "exit_code=" STRINGIFY(MSAN_ERROR)))
       FATAL("Custom MSAN_OPTIONS set without exit_code=" STRINGIFY(
           MSAN_ERROR) " - please fix!");
 
     if (!strstr(x, "symbolize=0"))
       FATAL("Custom MSAN_OPTIONS set without symbolize=0 - please fix!");
+
   }
 
   setenv("ASAN_OPTIONS",
@@ -660,14 +748,18 @@ static void set_up_environment(void) {
                          "msan_track_origins=0", 0);
 
   if (getenv("AFL_PRELOAD")) {
+
     setenv("LD_PRELOAD", getenv("AFL_PRELOAD"), 1);
     setenv("DYLD_INSERT_LIBRARIES", getenv("AFL_PRELOAD"), 1);
+
   }
+
 }
 
 /* Setup signal handlers, duh. */
 
 static void setup_signal_handlers(void) {
+
   struct sigaction sa;
 
   sa.sa_handler   = NULL;
@@ -687,11 +779,13 @@ static void setup_signal_handlers(void) {
 
   sa.sa_handler = handle_timeout;
   sigaction(SIGALRM, &sa, NULL);
+
 }
 
 /* Display usage hints. */
 
 static void usage(u8* argv0) {
+
   SAYF(
       "\n%s [ options ] -- /path/to/target_app [ ... ]\n\n"
 
@@ -716,15 +810,18 @@ static void usage(u8* argv0) {
       argv0, EXEC_TIMEOUT, MEM_LIMIT, doc_path);
 
   exit(1);
+
 }
 
 /* Find binary. */
 
 static void find_binary(u8* fname) {
+
   u8*         env_path = 0;
   struct stat st;
 
   if (strchr(fname, '/') || !(env_path = getenv("PATH"))) {
+
     target_path = ck_strdup(fname);
 
     if (stat(target_path, &st) || !S_ISREG(st.st_mode) ||
@@ -732,10 +829,13 @@ static void find_binary(u8* fname) {
       FATAL("Program '%s' not found or not executable", fname);
 
   } else {
+
     while (env_path) {
+
       u8 *cur_elem, *delim = strchr(env_path, ':');
 
       if (delim) {
+
         cur_elem = ck_alloc(delim - env_path + 1);
         memcpy(cur_elem, env_path, delim - env_path);
         delim++;
@@ -758,16 +858,20 @@ static void find_binary(u8* fname) {
 
       ck_free(target_path);
       target_path = 0;
+
     }
 
     if (!target_path)
       FATAL("Program '%s' not found or not executable", fname);
+
   }
+
 }
 
 /* Fix up argv for QEMU. */
 
 static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
+
   char** new_argv = ck_alloc(sizeof(char*) * (argc + 4));
   u8 *   tmp, *cp, *rsl, *own_copy;
 
@@ -781,6 +885,7 @@ static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
   tmp = getenv("AFL_PATH");
 
   if (tmp) {
+
     cp = alloc_printf("%s/afl-qemu-trace", tmp);
 
     if (access(cp, X_OK))
@@ -788,36 +893,44 @@ static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
 
     target_path = new_argv[0] = cp;
     return new_argv;
+
   }
 
   own_copy = ck_strdup(own_loc);
   rsl      = strrchr(own_copy, '/');
 
   if (rsl) {
+
     *rsl = 0;
 
     cp = alloc_printf("%s/afl-qemu-trace", own_copy);
     ck_free(own_copy);
 
     if (!access(cp, X_OK)) {
+
       target_path = new_argv[0] = cp;
       return new_argv;
+
     }
 
   } else
     ck_free(own_copy);
 
   if (!access(BIN_PATH "/afl-qemu-trace", X_OK)) {
+
     target_path = new_argv[0] = BIN_PATH "/afl-qemu-trace";
     return new_argv;
+
   }
 
   FATAL("Unable to find 'afl-qemu-trace'.");
+
 }
 
 /* Main entry point */
 
 int main(int argc, char** argv) {
+
   s32 opt;
   u8  mem_limit_given = 0, timeout_given = 0, qemu_mode = 0, unicorn_mode = 0;
   char** use_argv;
@@ -829,6 +942,7 @@ int main(int argc, char** argv) {
   while ((opt = getopt(argc, argv, "+i:f:m:t:eQU")) > 0)
 
     switch (opt) {
+
       case 'i':
 
         if (in_file)
@@ -852,6 +966,7 @@ int main(int argc, char** argv) {
         break;
 
       case 'm': {
+
         u8 suffix = 'M';
 
         if (mem_limit_given)
@@ -859,8 +974,10 @@ int main(int argc, char** argv) {
         mem_limit_given = 1;
 
         if (!strcmp(optarg, "none")) {
+
           mem_limit = 0;
           break;
+
         }
 
         if (sscanf(optarg, "%llu%c", &mem_limit, &suffix) < 1 ||
@@ -868,6 +985,7 @@ int main(int argc, char** argv) {
           FATAL("Bad syntax used for -m");
 
         switch (suffix) {
+
           case 'T':
             mem_limit *= 1024 * 1024;
             break;
@@ -882,6 +1000,7 @@ int main(int argc, char** argv) {
 
           default:
             FATAL("Unsupported suffix or bad syntax for -m");
+
         }
 
         if (mem_limit < 5)
@@ -889,6 +1008,7 @@ int main(int argc, char** argv) {
 
         if (sizeof(rlim_t) == 4 && mem_limit > 2000)
           FATAL("Value of -m out of range on 32-bit systems");
+
 
       }
 
@@ -930,6 +1050,7 @@ int main(int argc, char** argv) {
       default:
 
         usage(argv[0]);
+
     }
 
   if (optind == argc || !in_file)
@@ -971,5 +1092,6 @@ int main(int argc, char** argv) {
   OKF("We're done here. Have a nice day!\n");
 
   exit(0);
+
 }
 

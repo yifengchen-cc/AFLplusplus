@@ -103,6 +103,7 @@ extern u8 child_timed_out;
 
 static const u8 count_class_lookup[256] = {
 
+
     [0]           = 0,
     [1]           = 1,
     [2]           = 2,
@@ -116,41 +117,55 @@ static const u8 count_class_lookup[256] = {
 };
 
 static void classify_counts(u8* mem) {
+
   u32 i = MAP_SIZE;
 
   if (edges_only) {
+
     while (i--) {
+
       if (*mem)
         *mem = 1;
       mem++;
+
     }
 
   } else {
+
     while (i--) {
+
       *mem = count_class_lookup[*mem];
       mem++;
+
     }
+
   }
+
 }
 
 /* Apply mask to classified bitmap (if set). */
 
 static void apply_mask(u32* mem, u32* mask) {
+
   u32 i = (MAP_SIZE >> 2);
 
   if (!mask)
     return;
 
   while (i--) {
+
     *mem &= ~*mask;
     mem++;
     mask++;
+
   }
+
 }
 
 /* See if any bytes are set in the bitmap. */
 
 static inline u8 anything_set(void) {
+
   u32* ptr = (u32*)trace_bits;
   u32  i   = (MAP_SIZE >> 2);
 
@@ -159,18 +174,22 @@ static inline u8 anything_set(void) {
       return 1;
 
   return 0;
+
 }
 
 /* Get rid of temp files (atexit handler). */
 
 static void at_exit_handler(void) {
+
   if (out_file)
     unlink(out_file);                                      /* Ignore errors */
+
 }
 
 /* Read initial file. */
 
 static void read_initial_file(void) {
+
   struct stat st;
   s32         fd = open(in_file, O_RDONLY);
 
@@ -191,11 +210,13 @@ static void read_initial_file(void) {
   close(fd);
 
   OKF("Read %u byte%s from '%s'.", in_len, in_len == 1 ? "" : "s", in_file);
+
 }
 
 /* Write output file. */
 
 static s32 write_to_file(u8* path, u8* mem, u32 len) {
+
   s32 ret;
 
   unlink(path);                                            /* Ignore errors */
@@ -210,6 +231,7 @@ static s32 write_to_file(u8* path, u8* mem, u32 len) {
   lseek(ret, 0, SEEK_SET);
 
   return ret;
+
 }
 
 /* Write modified data to file for testing. If use_stdin is clear, the old file
@@ -217,9 +239,11 @@ static s32 write_to_file(u8* path, u8* mem, u32 len) {
    truncated. */
 
 static void write_to_testcase(void* mem, u32 len) {
+
   s32 fd = out_fd;
 
   if (!use_stdin) {
+
     unlink(out_file);                                     /* Ignore errors. */
 
     fd = open(out_file, O_WRONLY | O_CREAT | O_EXCL, 0600);
@@ -233,29 +257,36 @@ static void write_to_testcase(void* mem, u32 len) {
   ck_write(fd, mem, len, out_file);
 
   if (use_stdin) {
+
     if (ftruncate(fd, len))
       PFATAL("ftruncate() failed");
     lseek(fd, 0, SEEK_SET);
 
   } else
     close(fd);
+
 }
 
 /* Handle timeout signal. */
 /*
 static void handle_timeout(int sig) {
 
+
   if (child_pid > 0) {
+
 
   child_timed_out = 1;
     kill(child_pid, SIGKILL);
 
   } else if (child_pid == -1 && forksrv_pid > 0) {
 
+
     child_timed_out = 1;
     kill(forksrv_pid, SIGKILL);
 
+
   }
+
 
 }
 */
@@ -263,6 +294,7 @@ static void handle_timeout(int sig) {
 /* start the app and it's forkserver */
 /*
 static void init_forkserver(char **argv) {
+
   static struct itimerval it;
   int st_pipe[2], ctl_pipe[2];
   int status = 0;
@@ -277,14 +309,17 @@ static void init_forkserver(char **argv) {
 
   if (!forksrv_pid) {
 
+
     struct rlimit r;
 
     if (dup2(use_stdin ? out_fd : dev_null_fd, 0) < 0 ||
         dup2(dev_null_fd, 1) < 0 ||
         dup2(dev_null_fd, 2) < 0) {
 
+
       *(u32*)trace_bits = EXEC_FAIL_SIG;
       PFATAL("dup2() failed");
+
 
     }
 
@@ -294,6 +329,7 @@ static void init_forkserver(char **argv) {
     setsid();
 
     if (mem_limit) {
+
 
       r.rlim_max = r.rlim_cur = ((rlim_t)mem_limit) << 20;
 
@@ -306,6 +342,7 @@ static void init_forkserver(char **argv) {
       setrlimit(RLIMIT_DATA, &r); // Ignore errors
 
 #endif // ^RLIMIT_AS
+
 
     }
 
@@ -327,6 +364,7 @@ static void init_forkserver(char **argv) {
     *(u32*)trace_bits = EXEC_FAIL_SIG;
     exit(0);
 
+
   }
 
   // Close the unneeded endpoints.
@@ -341,9 +379,11 @@ static void init_forkserver(char **argv) {
 
   if (exec_tmout) {
 
+
     child_timed_out = 0;
     it.it_value.tv_sec = (exec_tmout * FORK_WAIT_MULT / 1000);
     it.it_value.tv_usec = ((exec_tmout * FORK_WAIT_MULT) % 1000) * 1000;
+
 
   }
 
@@ -359,8 +399,10 @@ static void init_forkserver(char **argv) {
   // Otherwise, try to figure out what went wrong.
 
   if (rlen == 4) {
+
     ACTF("All right - fork server is up.");
     return;
+
   }
 
   if (waitpid(forksrv_pid, &status, 0) <= 0)
@@ -378,6 +420,7 @@ static void init_forkserver(char **argv) {
   else if (child_crashed)
     SAYF(cLRD "\n+++ Program killed by signal %u +++\n" cRST, WTERMSIG(status));
 
+
 }
 */
 
@@ -385,6 +428,7 @@ static void init_forkserver(char **argv) {
    1 if they should be kept. */
 
 static u8 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
+
   static struct itimerval it;
   static u32              prev_timed_out = 0;
   int                     status         = 0;
@@ -402,15 +446,19 @@ static u8 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
      tell it to have at it, and then read back PID. */
 
   if ((res = write(fsrv_ctl_fd, &prev_timed_out, 4)) != 4) {
+
     if (stop_soon)
       return 0;
     RPFATAL(res, "Unable to request new process from fork server (OOM?)");
+
   }
 
   if ((res = read(fsrv_st_fd, &child_pid, 4)) != 4) {
+
     if (stop_soon)
       return 0;
     RPFATAL(res, "Unable to request new process from fork server (OOM?)");
+
   }
 
   if (child_pid <= 0)
@@ -419,16 +467,20 @@ static u8 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
   /* Configure timeout, wait for child, cancel timeout. */
 
   if (exec_tmout) {
+
     it.it_value.tv_sec  = (exec_tmout / 1000);
     it.it_value.tv_usec = (exec_tmout % 1000) * 1000;
+
   }
 
   setitimer(ITIMER_REAL, &it, NULL);
 
   if ((res = read(fsrv_st_fd, &status, 4)) != 4) {
+
     if (stop_soon)
       return 0;
     RPFATAL(res, "Unable to communicate with fork server (OOM?)");
+
   }
 
   child_pid           = 0;
@@ -449,16 +501,20 @@ static u8 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
   total_execs++;
 
   if (stop_soon) {
+
     SAYF(cRST cLRD "\n+++ Minimization aborted by user +++\n" cRST);
     close(write_to_file(output_file, in_data, in_len));
     exit(1);
+
   }
 
   /* Always discard inputs that time out. */
 
   if (child_timed_out) {
+
     missed_hangs++;
     return 0;
+
   }
 
   /* Handle crashing inputs depending on current mode. */
@@ -466,16 +522,20 @@ static u8 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
   if (WIFSIGNALED(status) ||
       (WIFEXITED(status) && WEXITSTATUS(status) == MSAN_ERROR) ||
       (WIFEXITED(status) && WEXITSTATUS(status) && exit_crash)) {
+
     if (first_run)
       crash_mode = 1;
 
     if (crash_mode) {
+
       if (!exact_mode)
         return 1;
 
     } else {
+
       missed_crashes++;
       return 0;
+
     }
 
   } else
@@ -483,8 +543,10 @@ static u8 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
       /* Handle non-crashing inputs appropriately. */
 
       if (crash_mode) {
+
     missed_paths++;
     return 0;
+
   }
 
   cksum = hash32(trace_bits, MAP_SIZE, HASH_CONST);
@@ -497,20 +559,24 @@ static u8 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
 
   missed_paths++;
   return 0;
+
 }
 
 /* Find first power of two greater or equal to val. */
 
 static u32 next_p2(u32 val) {
+
   u32 ret = 1;
   while (val > ret)
     ret <<= 1;
   return ret;
+
 }
 
 /* Actually minimize! */
 
 static void minimize(char** argv) {
+
   static u32 alpha_map[256];
 
   u8* tmp_buf  = ck_alloc_nozero(in_len);
@@ -533,6 +599,7 @@ static void minimize(char** argv) {
   ACTF(cBRI "Stage #0: " cRST "One-time block normalization...");
 
   while (set_pos < in_len) {
+
     u32 use_len = MIN(set_len, in_len - set_pos);
 
     for (i = 0; i < use_len; i++)
@@ -540,6 +607,7 @@ static void minimize(char** argv) {
         break;
 
     if (i != use_len) {
+
       memcpy(tmp_buf, in_data, in_len);
       memset(tmp_buf + set_pos, '0', use_len);
 
@@ -547,13 +615,17 @@ static void minimize(char** argv) {
       res = run_target(argv, tmp_buf, in_len, 0);
 
       if (res) {
+
         memset(in_data + set_pos, '0', use_len);
         /*        changed_any = 1; value is not used */
         alpha_del0 += use_len;
+
       }
+
     }
 
     set_pos += set_len;
+
   }
 
   alpha_d_total += alpha_del0;
@@ -586,6 +658,7 @@ next_del_blksize:
        in_len);
 
   while (del_pos < in_len) {
+
     u8  res;
     s32 tail_len;
 
@@ -600,8 +673,10 @@ next_del_blksize:
 
     if (!prev_del && tail_len &&
         !memcmp(in_data + del_pos - del_len, in_data + del_pos, del_len)) {
+
       del_pos += del_len;
       continue;
+
     }
 
     prev_del = 0;
@@ -615,6 +690,7 @@ next_del_blksize:
     res = run_target(argv, tmp_buf, del_pos + tail_len, 0);
 
     if (res) {
+
       memcpy(in_data, tmp_buf, del_pos + tail_len);
       prev_del = 1;
       in_len   = del_pos + tail_len;
@@ -623,11 +699,14 @@ next_del_blksize:
 
     } else
       del_pos += del_len;
+
   }
 
   if (del_len > 1 && in_len >= 1) {
+
     del_len /= 2;
     goto next_del_blksize;
+
   }
 
   OKF("Block removal complete, %u bytes deleted.", stage_o_len - in_len);
@@ -650,15 +729,18 @@ next_del_blksize:
   memset(alpha_map, 0, sizeof(alpha_map));
 
   for (i = 0; i < in_len; i++) {
+
     if (!alpha_map[in_data[i]])
       alpha_size++;
     alpha_map[in_data[i]]++;
+
   }
 
   ACTF(cBRI "Stage #2: " cRST "Minimizing symbols (%u code point%s)...",
        alpha_size, alpha_size == 1 ? "" : "s");
 
   for (i = 0; i < 256; i++) {
+
     u32 r;
     u8  res;
 
@@ -674,11 +756,14 @@ next_del_blksize:
     res = run_target(argv, tmp_buf, in_len, 0);
 
     if (res) {
+
       memcpy(in_data, tmp_buf, in_len);
       syms_removed++;
       alpha_del1 += alpha_map[i];
       changed_any = 1;
+
     }
+
   }
 
   alpha_d_total += alpha_del1;
@@ -698,6 +783,7 @@ next_del_blksize:
   memcpy(tmp_buf, in_data, in_len);
 
   for (i = 0; i < in_len; i++) {
+
     u8 res, orig = tmp_buf[i];
 
     if (orig == '0')
@@ -707,12 +793,14 @@ next_del_blksize:
     res = run_target(argv, tmp_buf, in_len, 0);
 
     if (res) {
+
       in_data[i] = '0';
       alpha_del2++;
       changed_any = 1;
 
     } else
       tmp_buf[i] = orig;
+
   }
 
   alpha_d_total += alpha_del2;
@@ -735,20 +823,24 @@ finalize_all:
 
   if (total_execs > 50 && missed_hangs * 10 > total_execs)
     WARNF(cLRD "Frequent timeouts - results may be skewed." cRST);
+
 }
 
 /* Handle Ctrl-C and the like. */
 
 static void handle_stop_sig(int sig) {
+
   stop_soon = 1;
 
   if (child_pid > 0)
     kill(child_pid, SIGKILL);
+
 }
 
 /* Do basic preparations - persistent fds, filenames, etc. */
 
 static void set_up_environment(void) {
+
   u8* x;
 
   dev_null_fd = open("/dev/null", O_RDWR);
@@ -756,15 +848,19 @@ static void set_up_environment(void) {
     PFATAL("Unable to open /dev/null");
 
   if (!out_file) {
+
     u8* use_dir = ".";
 
     if (access(use_dir, R_OK | W_OK | X_OK)) {
+
       use_dir = getenv("TMPDIR");
       if (!use_dir)
         use_dir = "/tmp";
+
     }
 
     out_file = alloc_printf("%s/.afl-tmin-temp-%u", use_dir, getpid());
+
   }
 
   unlink(out_file);
@@ -779,22 +875,26 @@ static void set_up_environment(void) {
   x = getenv("ASAN_OPTIONS");
 
   if (x) {
+
     if (!strstr(x, "abort_on_error=1"))
       FATAL("Custom ASAN_OPTIONS set without abort_on_error=1 - please fix!");
 
     if (!strstr(x, "symbolize=0"))
       FATAL("Custom ASAN_OPTIONS set without symbolize=0 - please fix!");
+
   }
 
   x = getenv("MSAN_OPTIONS");
 
   if (x) {
+
     if (!strstr(x, "exit_code=" STRINGIFY(MSAN_ERROR)))
       FATAL("Custom MSAN_OPTIONS set without exit_code=" STRINGIFY(
           MSAN_ERROR) " - please fix!");
 
     if (!strstr(x, "symbolize=0"))
       FATAL("Custom MSAN_OPTIONS set without symbolize=0 - please fix!");
+
   }
 
   setenv("ASAN_OPTIONS",
@@ -811,14 +911,18 @@ static void set_up_environment(void) {
                          "msan_track_origins=0", 0);
 
   if (getenv("AFL_PRELOAD")) {
+
     setenv("LD_PRELOAD", getenv("AFL_PRELOAD"), 1);
     setenv("DYLD_INSERT_LIBRARIES", getenv("AFL_PRELOAD"), 1);
+
   }
+
 }
 
 /* Setup signal handlers, duh. */
 
 static void setup_signal_handlers(void) {
+
   struct sigaction sa;
 
   sa.sa_handler   = NULL;
@@ -838,11 +942,13 @@ static void setup_signal_handlers(void) {
 
   sa.sa_handler = handle_timeout;
   sigaction(SIGALRM, &sa, NULL);
+
 }
 
 /* Display usage hints. */
 
 static void usage(u8* argv0) {
+
   SAYF(
       "\n%s [ options ] -- /path/to/target_app [ ... ]\n\n"
 
@@ -871,15 +977,18 @@ static void usage(u8* argv0) {
       argv0, EXEC_TIMEOUT, MEM_LIMIT, doc_path);
 
   exit(1);
+
 }
 
 /* Find binary. */
 
 static void find_binary(u8* fname) {
+
   u8*         env_path = 0;
   struct stat st;
 
   if (strchr(fname, '/') || !(env_path = getenv("PATH"))) {
+
     target_path = ck_strdup(fname);
 
     if (stat(target_path, &st) || !S_ISREG(st.st_mode) ||
@@ -887,10 +996,13 @@ static void find_binary(u8* fname) {
       FATAL("Program '%s' not found or not executable", fname);
 
   } else {
+
     while (env_path) {
+
       u8 *cur_elem, *delim = strchr(env_path, ':');
 
       if (delim) {
+
         cur_elem = ck_alloc(delim - env_path + 1);
         memcpy(cur_elem, env_path, delim - env_path);
         delim++;
@@ -913,16 +1025,20 @@ static void find_binary(u8* fname) {
 
       ck_free(target_path);
       target_path = 0;
+
     }
 
     if (!target_path)
       FATAL("Program '%s' not found or not executable", fname);
+
   }
+
 }
 
 /* Fix up argv for QEMU. */
 
 static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
+
   char** new_argv = ck_alloc(sizeof(char*) * (argc + 4));
   u8 *   tmp, *cp, *rsl, *own_copy;
 
@@ -936,6 +1052,7 @@ static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
   tmp = getenv("AFL_PATH");
 
   if (tmp) {
+
     cp = alloc_printf("%s/afl-qemu-trace", tmp);
 
     if (access(cp, X_OK))
@@ -943,36 +1060,44 @@ static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
 
     target_path = new_argv[0] = cp;
     return new_argv;
+
   }
 
   own_copy = ck_strdup(own_loc);
   rsl      = strrchr(own_copy, '/');
 
   if (rsl) {
+
     *rsl = 0;
 
     cp = alloc_printf("%s/afl-qemu-trace", own_copy);
     ck_free(own_copy);
 
     if (!access(cp, X_OK)) {
+
       target_path = new_argv[0] = cp;
       return new_argv;
+
     }
 
   } else
     ck_free(own_copy);
 
   if (!access(BIN_PATH "/afl-qemu-trace", X_OK)) {
+
     target_path = new_argv[0] = BIN_PATH "/afl-qemu-trace";
     return new_argv;
+
   }
 
   FATAL("Unable to find 'afl-qemu-trace'.");
+
 }
 
 /* Read mask bitmap from file. This is for the -B option. */
 
 static void read_bitmap(u8* fname) {
+
   s32 fd = open(fname, O_RDONLY);
 
   if (fd < 0)
@@ -981,11 +1106,13 @@ static void read_bitmap(u8* fname) {
   ck_read(fd, mask_bitmap, MAP_SIZE, fname);
 
   close(fd);
+
 }
 
 /* Main entry point */
 
 int main(int argc, char** argv) {
+
   s32 opt;
   u8  mem_limit_given = 0, timeout_given = 0, qemu_mode = 0, unicorn_mode = 0;
   char** use_argv;
@@ -997,6 +1124,7 @@ int main(int argc, char** argv) {
   while ((opt = getopt(argc, argv, "+i:o:f:m:t:B:xeQU")) > 0)
 
     switch (opt) {
+
       case 'i':
 
         if (in_file)
@@ -1034,6 +1162,7 @@ int main(int argc, char** argv) {
         break;
 
       case 'm': {
+
         u8 suffix = 'M';
 
         if (mem_limit_given)
@@ -1041,8 +1170,10 @@ int main(int argc, char** argv) {
         mem_limit_given = 1;
 
         if (!strcmp(optarg, "none")) {
+
           mem_limit = 0;
           break;
+
         }
 
         if (sscanf(optarg, "%llu%c", &mem_limit, &suffix) < 1 ||
@@ -1050,6 +1181,7 @@ int main(int argc, char** argv) {
           FATAL("Bad syntax used for -m");
 
         switch (suffix) {
+
           case 'T':
             mem_limit *= 1024 * 1024;
             break;
@@ -1064,6 +1196,7 @@ int main(int argc, char** argv) {
 
           default:
             FATAL("Unsupported suffix or bad syntax for -m");
+
         }
 
         if (mem_limit < 5)
@@ -1071,6 +1204,7 @@ int main(int argc, char** argv) {
 
         if (sizeof(rlim_t) == 4 && mem_limit > 2000)
           FATAL("Value of -m out of range on 32-bit systems");
+
 
       }
 
@@ -1133,6 +1267,7 @@ int main(int argc, char** argv) {
       default:
 
         usage(argv[0]);
+
     }
 
   if (optind == argc || !in_file || !output_file)
@@ -1169,6 +1304,7 @@ int main(int argc, char** argv) {
     FATAL("Target binary times out (adjusting -t may help).");
 
   if (!crash_mode) {
+
     OKF("Program terminates normally, minimizing in " cCYA "instrumented" cRST
         " mode.");
 
@@ -1176,9 +1312,11 @@ int main(int argc, char** argv) {
       FATAL("No instrumentation detected.");
 
   } else {
+
     OKF("Program exits with a signal, minimizing in " cMGN "%scrash" cRST
         " mode.",
         exact_mode ? "EXACT " : "");
+
   }
 
   minimize(use_argv);
@@ -1193,5 +1331,6 @@ int main(int argc, char** argv) {
   OKF("We're done here. Have a nice day!\n");
 
   exit(0);
+
 }
 

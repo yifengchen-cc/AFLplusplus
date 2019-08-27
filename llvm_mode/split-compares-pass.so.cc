@@ -27,19 +27,26 @@
 using namespace llvm;
 
 namespace {
+
 class SplitComparesTransform : public ModulePass {
+
  public:
   static char ID;
   SplitComparesTransform() : ModulePass(ID) {
+
+
   }
 
   bool runOnModule(Module &M) override;
 #if LLVM_VERSION_MAJOR >= 4
   StringRef getPassName() const override {
+
 #else
   const char *getPassName() const override {
+
 #endif
     return "simplifies and splits ICMP instructions";
+
   }
 
  private:
@@ -54,6 +61,7 @@ char SplitComparesTransform::ID = 0;
 /* This function splits ICMP instructions with xGE or xLE predicates into two
  * ICMP instructions with predicate xGT or xLT and EQ */
 bool SplitComparesTransform::simplifyCompares(Module &M) {
+
   LLVMContext &              C = M.getContext();
   std::vector<Instruction *> icomps;
   IntegerType *              Int1Ty = IntegerType::getInt1Ty(C);
@@ -61,16 +69,22 @@ bool SplitComparesTransform::simplifyCompares(Module &M) {
   /* iterate over all functions, bbs and instruction and add
    * all integer comparisons with >= and <= predicates to the icomps vector */
   for (auto &F : M) {
+
     for (auto &BB : F) {
+
       for (auto &IN : BB) {
+
         CmpInst *selectcmpInst = nullptr;
 
         if ((selectcmpInst = dyn_cast<CmpInst>(&IN))) {
+
           if (selectcmpInst->getPredicate() != CmpInst::ICMP_UGE &&
               selectcmpInst->getPredicate() != CmpInst::ICMP_SGE &&
               selectcmpInst->getPredicate() != CmpInst::ICMP_ULE &&
               selectcmpInst->getPredicate() != CmpInst::ICMP_SLE) {
+
             continue;
+
           }
 
           auto op0 = selectcmpInst->getOperand(0);
@@ -81,20 +95,29 @@ bool SplitComparesTransform::simplifyCompares(Module &M) {
 
           /* this is probably not needed but we do it anyway */
           if (!intTyOp0 || !intTyOp1) {
+
             continue;
+
           }
 
           icomps.push_back(selectcmpInst);
+
         }
+
       }
+
     }
+
   }
 
   if (!icomps.size()) {
+
     return false;
+
   }
 
   for (auto &IcmpInst : icomps) {
+
     BasicBlock *bb = IcmpInst->getParent();
 
     auto op0 = IcmpInst->getOperand(0);
@@ -104,6 +127,7 @@ bool SplitComparesTransform::simplifyCompares(Module &M) {
     auto               pred = dyn_cast<CmpInst>(IcmpInst)->getPredicate();
     CmpInst::Predicate new_pred;
     switch (pred) {
+
       case CmpInst::ICMP_UGE:
         new_pred = CmpInst::ICMP_UGT;
         break;
@@ -118,6 +142,7 @@ bool SplitComparesTransform::simplifyCompares(Module &M) {
         break;
       default:  // keep the compiler happy
         continue;
+
     }
 
     /* split before the icmp instruction */
@@ -160,13 +185,16 @@ bool SplitComparesTransform::simplifyCompares(Module &M) {
     /* replace the old IcmpInst with our new and shiny PHI inst */
     BasicBlock::iterator ii(IcmpInst);
     ReplaceInstWithInst(IcmpInst->getParent()->getInstList(), ii, PN);
+
   }
 
   return true;
+
 }
 
 /* this function transforms signed compares to equivalent unsigned compares */
 bool SplitComparesTransform::simplifySignedness(Module &M) {
+
   LLVMContext &              C = M.getContext();
   std::vector<Instruction *> icomps;
   IntegerType *              Int1Ty = IntegerType::getInt1Ty(C);
@@ -174,14 +202,20 @@ bool SplitComparesTransform::simplifySignedness(Module &M) {
   /* iterate over all functions, bbs and instruction and add
    * all signed compares to icomps vector */
   for (auto &F : M) {
+
     for (auto &BB : F) {
+
       for (auto &IN : BB) {
+
         CmpInst *selectcmpInst = nullptr;
 
         if ((selectcmpInst = dyn_cast<CmpInst>(&IN))) {
+
           if (selectcmpInst->getPredicate() != CmpInst::ICMP_SGT &&
               selectcmpInst->getPredicate() != CmpInst::ICMP_SLT) {
+
             continue;
+
           }
 
           auto op0 = selectcmpInst->getOperand(0);
@@ -192,25 +226,36 @@ bool SplitComparesTransform::simplifySignedness(Module &M) {
 
           /* see above */
           if (!intTyOp0 || !intTyOp1) {
+
             continue;
+
           }
 
           /* i think this is not possible but to lazy to look it up */
           if (intTyOp0->getBitWidth() != intTyOp1->getBitWidth()) {
+
             continue;
+
           }
 
           icomps.push_back(selectcmpInst);
+
         }
+
       }
+
     }
+
   }
 
   if (!icomps.size()) {
+
     return false;
+
   }
 
   for (auto &IcmpInst : icomps) {
+
     BasicBlock *bb = IcmpInst->getParent();
 
     auto op0 = IcmpInst->getOperand(0);
@@ -224,9 +269,12 @@ bool SplitComparesTransform::simplifySignedness(Module &M) {
     auto               pred = dyn_cast<CmpInst>(IcmpInst)->getPredicate();
     CmpInst::Predicate new_pred;
     if (pred == CmpInst::ICMP_SGT) {
+
       new_pred = CmpInst::ICMP_UGT;
     } else {
+
       new_pred = CmpInst::ICMP_ULT;
+
     }
 
     BasicBlock *end_bb = bb->splitBasicBlock(BasicBlock::iterator(IcmpInst));
@@ -258,6 +306,7 @@ bool SplitComparesTransform::simplifySignedness(Module &M) {
     BasicBlock * sign_bb =
         BasicBlock::Create(C, "sign", end_bb->getParent(), end_bb);
     if (pred == CmpInst::ICMP_SGT) {
+
       /* if we check for > and the op0 positive and op1 negative then the final
        * result is true. if op0 negative and op1 pos, the cmp must result
        * in false
@@ -265,9 +314,11 @@ bool SplitComparesTransform::simplifySignedness(Module &M) {
       icmp_inv_sig_cmp =
           CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_ULT, t_op0, t_op1);
     } else {
+
       /* just the inverse of the above statement */
       icmp_inv_sig_cmp =
           CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_UGT, t_op0, t_op1);
+
     }
     sign_bb->getInstList().push_back(icmp_inv_sig_cmp);
     BranchInst::Create(end_bb, sign_bb);
@@ -294,13 +345,16 @@ bool SplitComparesTransform::simplifySignedness(Module &M) {
 
     BasicBlock::iterator ii(IcmpInst);
     ReplaceInstWithInst(IcmpInst->getParent()->getInstList(), ii, PN);
+
   }
 
   return true;
+
 }
 
 /* splits icmps of size bitw into two nested icmps with bitw/2 size each */
 bool SplitComparesTransform::splitCompares(Module &M, unsigned bitw) {
+
   LLVMContext &C = M.getContext();
 
   IntegerType *Int1Ty     = IntegerType::getInt1Ty(C);
@@ -310,27 +364,37 @@ bool SplitComparesTransform::splitCompares(Module &M, unsigned bitw) {
   std::vector<Instruction *> icomps;
 
   if (bitw % 2) {
+
     return false;
+
   }
 
   /* not supported yet */
   if (bitw > 64) {
+
     return false;
+
   }
 
   /* get all EQ, NE, UGT, and ULT icmps of width bitw. if the other two
    * unctions were executed only these four predicates should exist */
   for (auto &F : M) {
+
     for (auto &BB : F) {
+
       for (auto &IN : BB) {
+
         CmpInst *selectcmpInst = nullptr;
 
         if ((selectcmpInst = dyn_cast<CmpInst>(&IN))) {
+
           if (selectcmpInst->getPredicate() != CmpInst::ICMP_EQ &&
               selectcmpInst->getPredicate() != CmpInst::ICMP_NE &&
               selectcmpInst->getPredicate() != CmpInst::ICMP_UGT &&
               selectcmpInst->getPredicate() != CmpInst::ICMP_ULT) {
+
             continue;
+
           }
 
           auto op0 = selectcmpInst->getOperand(0);
@@ -340,26 +404,37 @@ bool SplitComparesTransform::splitCompares(Module &M, unsigned bitw) {
           IntegerType *intTyOp1 = dyn_cast<IntegerType>(op1->getType());
 
           if (!intTyOp0 || !intTyOp1) {
+
             continue;
+
           }
 
           /* check if the bitwidths are the one we are looking for */
           if (intTyOp0->getBitWidth() != bitw ||
               intTyOp1->getBitWidth() != bitw) {
+
             continue;
+
           }
 
           icomps.push_back(selectcmpInst);
+
         }
+
       }
+
     }
+
   }
 
   if (!icomps.size()) {
+
     return false;
+
   }
 
   for (auto &IcmpInst : icomps) {
+
     BasicBlock *bb = IcmpInst->getParent();
 
     auto op0 = IcmpInst->getOperand(0);
@@ -389,6 +464,7 @@ bool SplitComparesTransform::splitCompares(Module &M, unsigned bitw) {
 
     /* now we have to destinguish between == != and > < */
     if (pred == CmpInst::ICMP_EQ || pred == CmpInst::ICMP_NE) {
+
       /* transformation for == and != icmps */
 
       /* create a compare for the lower half of the original operands */
@@ -410,10 +486,13 @@ bool SplitComparesTransform::splitCompares(Module &M, unsigned bitw) {
        * the comparison */
       auto term = bb->getTerminator();
       if (pred == CmpInst::ICMP_EQ) {
+
         BranchInst::Create(cmp_low_bb, end_bb, icmp_high, bb);
       } else {
+
         /* CmpInst::ICMP_NE */
         BranchInst::Create(end_bb, cmp_low_bb, icmp_high, bb);
+
       }
       term->eraseFromParent();
 
@@ -421,10 +500,13 @@ bool SplitComparesTransform::splitCompares(Module &M, unsigned bitw) {
       PHINode *PN = PHINode::Create(Int1Ty, 2, "");
       PN->addIncoming(icmp_low, cmp_low_bb);
       if (pred == CmpInst::ICMP_EQ) {
+
         PN->addIncoming(ConstantInt::get(Int1Ty, 0), bb);
       } else {
+
         /* CmpInst::ICMP_NE */
         PN->addIncoming(ConstantInt::get(Int1Ty, 1), bb);
+
       }
 
       /* replace the old icmp with the new PHI */
@@ -432,6 +514,7 @@ bool SplitComparesTransform::splitCompares(Module &M, unsigned bitw) {
       ReplaceInstWithInst(IcmpInst->getParent()->getInstList(), ii, PN);
 
     } else {
+
       /* CmpInst::ICMP_UGT and CmpInst::ICMP_ULT */
       /* transformations for < and > */
 
@@ -442,11 +525,14 @@ bool SplitComparesTransform::splitCompares(Module &M, unsigned bitw) {
       BasicBlock * inv_cmp_bb =
           BasicBlock::Create(C, "inv_cmp", end_bb->getParent(), end_bb);
       if (pred == CmpInst::ICMP_UGT) {
+
         icmp_inv_cmp = CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_ULT,
                                        op0_high, op1_high);
       } else {
+
         icmp_inv_cmp = CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_UGT,
                                        op0_high, op1_high);
+
       }
       inv_cmp_bb->getInstList().push_back(icmp_inv_cmp);
 
@@ -475,19 +561,25 @@ bool SplitComparesTransform::splitCompares(Module &M, unsigned bitw) {
 
       BasicBlock::iterator ii(IcmpInst);
       ReplaceInstWithInst(IcmpInst->getParent()->getInstList(), ii, PN);
+
     }
+
   }
   return true;
+
 }
 
 bool SplitComparesTransform::runOnModule(Module &M) {
+
   int bitw = 64;
 
   char *bitw_env = getenv("LAF_SPLIT_COMPARES_BITW");
   if (!bitw_env)
     bitw_env = getenv("AFL_LLVM_LAF_SPLIT_COMPARES_BITW");
   if (bitw_env) {
+
     bitw = atoi(bitw_env);
+
   }
 
   simplifyCompares(M);
@@ -498,6 +590,7 @@ bool SplitComparesTransform::runOnModule(Module &M) {
     errs() << "Split-compare-pass by laf.intel@gmail.com\n";
 
   switch (bitw) {
+
     case 64:
       errs() << "Running split-compare-pass " << 64 << "\n";
       splitCompares(M, 64);
@@ -517,15 +610,19 @@ bool SplitComparesTransform::runOnModule(Module &M) {
       errs() << "NOT Running split-compare-pass \n";
       return false;
       break;
+
   }
 
   verifyModule(M);
   return true;
+
 }
 
 static void registerSplitComparesPass(const PassManagerBuilder &,
                                       legacy::PassManagerBase &PM) {
+
   PM.add(new SplitComparesTransform());
+
 }
 
 static RegisterStandardPasses RegisterSplitComparesPass(

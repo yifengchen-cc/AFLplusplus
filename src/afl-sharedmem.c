@@ -48,24 +48,31 @@ static s32 shm_id;                     /* ID of the SHM region              */
 /* Get rid of shared memory (atexit handler). */
 
 void remove_shm(void) {
+
 #ifdef USEMMAP
   if (g_shm_base != NULL) {
+
     munmap(g_shm_base, MAP_SIZE);
     g_shm_base = NULL;
+
   }
 
   if (g_shm_fd != -1) {
+
     close(g_shm_fd);
     g_shm_fd = -1;
+
   }
 #else
   shmctl(shm_id, IPC_RMID, NULL);
 #endif
+
 }
 
 /* Configure shared memory. */
 
 void setup_shm(unsigned char dumb_mode) {
+
 #ifdef USEMMAP
   /* generate random file name for multi instance */
 
@@ -77,21 +84,27 @@ void setup_shm(unsigned char dumb_mode) {
   /* create the shared memory segment as if it was a file */
   g_shm_fd = shm_open(g_shm_file_path, O_CREAT | O_RDWR | O_EXCL, 0600);
   if (g_shm_fd == -1) {
+
     PFATAL("shm_open() failed");
+
   }
 
   /* configure the size of the shared memory segment */
   if (ftruncate(g_shm_fd, MAP_SIZE)) {
+
     PFATAL("setup_shm(): ftruncate() failed");
+
   }
 
   /* map the shared memory segment to the address space of the process */
   g_shm_base =
       mmap(0, MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, g_shm_fd, 0);
   if (g_shm_base == MAP_FAILED) {
+
     close(g_shm_fd);
     g_shm_fd = -1;
     PFATAL("mmap() failed");
+
   }
 
   atexit(remove_shm);
@@ -139,5 +152,6 @@ void setup_shm(unsigned char dumb_mode) {
     PFATAL("shmat() failed");
 
 #endif
+
 }
 

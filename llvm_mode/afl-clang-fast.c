@@ -41,24 +41,30 @@ static u32  cc_par_cnt = 1;            /* Param count, including argv0      */
 /* Try to find the runtime libraries. If that fails, abort. */
 
 static void find_obj(u8* argv0) {
+
   u8* afl_path = getenv("AFL_PATH");
   u8 *slash, *tmp;
 
   if (afl_path) {
+
     tmp = alloc_printf("%s/afl-llvm-rt.o", afl_path);
 
     if (!access(tmp, R_OK)) {
+
       obj_path = afl_path;
       ck_free(tmp);
       return;
+
     }
 
     ck_free(tmp);
+
   }
 
   slash = strrchr(argv0, '/');
 
   if (slash) {
+
     u8* dir;
 
     *slash = 0;
@@ -68,28 +74,35 @@ static void find_obj(u8* argv0) {
     tmp = alloc_printf("%s/afl-llvm-rt.o", dir);
 
     if (!access(tmp, R_OK)) {
+
       obj_path = dir;
       ck_free(tmp);
       return;
+
     }
 
     ck_free(tmp);
     ck_free(dir);
+
   }
 
   if (!access(AFL_PATH "/afl-llvm-rt.o", R_OK)) {
+
     obj_path = AFL_PATH;
     return;
+
   }
 
   FATAL(
       "Unable to find 'afl-llvm-rt.o' or 'afl-llvm-pass.so.cc'. Please set "
       "AFL_PATH");
+
 }
 
 /* Copy argv to cc_params, making the necessary edits. */
 
 static void edit_params(u32 argc, char** argv) {
+
   u8  fortify_set = 0, asan_set = 0, x_set = 0, maybe_linking = 1, bit_mode = 0;
   u8* name;
 
@@ -102,11 +115,14 @@ static void edit_params(u32 argc, char** argv) {
     name++;
 
   if (!strcmp(name, "afl-clang-fast++")) {
+
     u8* alt_cxx  = getenv("AFL_CXX");
     cc_params[0] = alt_cxx ? alt_cxx : (u8*)"clang++";
   } else {
+
     u8* alt_cc   = getenv("AFL_CC");
     cc_params[0] = alt_cc ? alt_cc : (u8*)"clang";
+
   }
 
   /* There are three ways to compile with afl-clang-fast. In the traditional
@@ -119,28 +135,34 @@ static void edit_params(u32 argc, char** argv) {
 
   // laf
   if (getenv("LAF_SPLIT_SWITCHES") || getenv("AFL_LLVM_LAF_SPLIT_SWITCHES")) {
+
     cc_params[cc_par_cnt++] = "-Xclang";
     cc_params[cc_par_cnt++] = "-load";
     cc_params[cc_par_cnt++] = "-Xclang";
     cc_params[cc_par_cnt++] =
         alloc_printf("%s/split-switches-pass.so", obj_path);
+
   }
 
   if (getenv("LAF_TRANSFORM_COMPARES") ||
       getenv("AFL_LLVM_LAF_TRANSFORM_COMPARES")) {
+
     cc_params[cc_par_cnt++] = "-Xclang";
     cc_params[cc_par_cnt++] = "-load";
     cc_params[cc_par_cnt++] = "-Xclang";
     cc_params[cc_par_cnt++] =
         alloc_printf("%s/compare-transform-pass.so", obj_path);
+
   }
 
   if (getenv("LAF_SPLIT_COMPARES") || getenv("AFL_LLVM_LAF_SPLIT_COMPARES")) {
+
     cc_params[cc_par_cnt++] = "-Xclang";
     cc_params[cc_par_cnt++] = "-load";
     cc_params[cc_par_cnt++] = "-Xclang";
     cc_params[cc_par_cnt++] =
         alloc_printf("%s/split-compares-pass.so", obj_path);
+
   }
   // /laf
 
@@ -149,8 +171,8 @@ static void edit_params(u32 argc, char** argv) {
       "-fsanitize-coverage=trace-pc-guard";  // edge coverage by default
   // cc_params[cc_par_cnt++] = "-mllvm";
   // cc_params[cc_par_cnt++] =
-  // "-fsanitize-coverage=trace-cmp,trace-div,trace-gep"; cc_params[cc_par_cnt++]
-  // = "-sanitizer-coverage-block-threshold=0";
+  // "-fsanitize-coverage=trace-cmp,trace-div,trace-gep";
+  // cc_params[cc_par_cnt++] = "-sanitizer-coverage-block-threshold=0";
 #else
   cc_params[cc_par_cnt++] = "-Xclang";
   cc_params[cc_par_cnt++] = "-load";
@@ -169,6 +191,7 @@ static void edit_params(u32 argc, char** argv) {
     maybe_linking = 0;
 
   while (--argc) {
+
     u8* cur = *(++argv);
 
     if (!strcmp(cur, "-m32"))
@@ -195,17 +218,22 @@ static void edit_params(u32 argc, char** argv) {
       continue;
 
     cc_params[cc_par_cnt++] = cur;
+
   }
 
   if (getenv("AFL_HARDEN")) {
+
     cc_params[cc_par_cnt++] = "-fstack-protector-all";
 
     if (!fortify_set)
       cc_params[cc_par_cnt++] = "-D_FORTIFY_SOURCE=2";
+
   }
 
   if (!asan_set) {
+
     if (getenv("AFL_USE_ASAN")) {
+
       if (getenv("AFL_USE_MSAN"))
         FATAL("ASAN and MSAN are mutually exclusive");
 
@@ -216,6 +244,7 @@ static void edit_params(u32 argc, char** argv) {
       cc_params[cc_par_cnt++] = "-fsanitize=address";
 
     } else if (getenv("AFL_USE_MSAN")) {
+
       if (getenv("AFL_USE_ASAN"))
         FATAL("ASAN and MSAN are mutually exclusive");
 
@@ -224,7 +253,9 @@ static void edit_params(u32 argc, char** argv) {
 
       cc_params[cc_par_cnt++] = "-U_FORTIFY_SOURCE";
       cc_params[cc_par_cnt++] = "-fsanitize=memory";
+
     }
+
   }
 
 #ifdef USE_TRACE_PC
@@ -235,17 +266,21 @@ static void edit_params(u32 argc, char** argv) {
 #endif /* USE_TRACE_PC */
 
   if (!getenv("AFL_DONT_OPTIMIZE")) {
+
     cc_params[cc_par_cnt++] = "-g";
     cc_params[cc_par_cnt++] = "-O3";
     cc_params[cc_par_cnt++] = "-funroll-loops";
+
   }
 
   if (getenv("AFL_NO_BUILTIN")) {
+
     cc_params[cc_par_cnt++] = "-fno-builtin-strcmp";
     cc_params[cc_par_cnt++] = "-fno-builtin-strncmp";
     cc_params[cc_par_cnt++] = "-fno-builtin-strcasecmp";
     cc_params[cc_par_cnt++] = "-fno-builtin-strncasecmp";
     cc_params[cc_par_cnt++] = "-fno-builtin-memcmp";
+
   }
 
 #ifdef USEMMAP
@@ -305,12 +340,16 @@ static void edit_params(u32 argc, char** argv) {
       "_I(); } while (0)";
 
   if (maybe_linking) {
+
     if (x_set) {
+
       cc_params[cc_par_cnt++] = "-x";
       cc_params[cc_par_cnt++] = "none";
+
     }
 
     switch (bit_mode) {
+
       case 0:
         cc_params[cc_par_cnt++] = alloc_printf("%s/afl-llvm-rt.o", obj_path);
         break;
@@ -330,25 +369,32 @@ static void edit_params(u32 argc, char** argv) {
           FATAL("-m64 is not supported by your compiler");
 
         break;
+
     }
+
   }
 
   cc_params[cc_par_cnt] = NULL;
+
 }
 
 /* Main entry point */
 
 int main(int argc, char** argv) {
+
   if (isatty(2) && !getenv("AFL_QUIET")) {
+
 #ifdef USE_TRACE_PC
     SAYF(cCYA "afl-clang-fast" VERSION cRST
               " [tpcg] by <lszekeres@google.com>\n");
 #else
     SAYF(cCYA "afl-clang-fast" VERSION cRST " by <lszekeres@google.com>\n");
 #endif /* ^USE_TRACE_PC */
+
   }
 
   if (argc < 2) {
+
     SAYF(
         "\n"
         "This is a helper application for afl-fuzz. It serves as a drop-in "
@@ -372,6 +418,7 @@ int main(int argc, char** argv) {
         BIN_PATH, BIN_PATH);
 
     exit(1);
+
   }
 
   find_obj(argv[0]);
@@ -391,5 +438,6 @@ int main(int argc, char** argv) {
   FATAL("Oops, failed to execute '%s' - check your PATH", cc_params[0]);
 
   return 0;
+
 }
 

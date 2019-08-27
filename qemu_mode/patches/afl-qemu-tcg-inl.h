@@ -38,6 +38,7 @@ void afl_maybe_log(void *cur_loc);
    and endian swap. Maybe it would be better to do the alignment
    and endian swap in tcg_reg_alloc_call(). */
 void tcg_gen_afl_maybe_log_call(target_ulong cur_loc) {
+
   int      real_args, pi;
   unsigned sizemask, flags;
   TCGOp *  op;
@@ -58,9 +59,11 @@ void tcg_gen_afl_maybe_log_call(target_ulong cur_loc) {
   retl = NULL;
   reth = NULL;
   if (sizemask != 0) {
+
     real_args    = 0;
     int is_64bit = sizemask & (1 << 2);
     if (is_64bit) {
+
       TCGv_i64 orig = temp_tcgv_i64(arg);
       TCGv_i32 h    = tcg_temp_new_i32();
       TCGv_i32 l    = tcg_temp_new_i32();
@@ -68,24 +71,32 @@ void tcg_gen_afl_maybe_log_call(target_ulong cur_loc) {
       split_args[real_args++] = tcgv_i32_temp(h);
       split_args[real_args++] = tcgv_i32_temp(l);
     } else {
+
       split_args[real_args++] = arg;
+
     }
     nargs    = real_args;
     args     = split_args;
     sizemask = 0;
+
   }
 #elif defined(TCG_TARGET_EXTEND_ARGS) && TCG_TARGET_REG_BITS == 64
   int is_64bit  = sizemask & (1 << 2);
   int is_signed = sizemask & (2 << 2);
   if (!is_64bit) {
+
     TCGv_i64 temp = tcg_temp_new_i64();
     TCGv_i64 orig = temp_tcgv_i64(arg);
     if (is_signed) {
+
       tcg_gen_ext32s_i64(temp, orig);
     } else {
+
       tcg_gen_ext32u_i64(temp, orig);
+
     }
     arg = tcgv_i64_temp(temp);
+
   }
 #endif /* TCG_TARGET_EXTEND_ARGS */
 
@@ -98,11 +109,14 @@ void tcg_gen_afl_maybe_log_call(target_ulong cur_loc) {
   real_args    = 0;
   int is_64bit = sizemask & (1 << 2);
   if (TCG_TARGET_REG_BITS < 64 && is_64bit) {
+
 #ifdef TCG_TARGET_CALL_ALIGN_ARGS
     /* some targets want aligned 64 bit args */
     if (real_args & 1) {
+
       op->args[pi++] = TCG_CALL_DUMMY_ARG;
       real_args++;
+
     }
 #endif
     /* If stack grows up, then we will be placing successive
@@ -123,6 +137,7 @@ void tcg_gen_afl_maybe_log_call(target_ulong cur_loc) {
     op->args[pi++] = temp_arg(arg + 1);
 #endif
     real_args += 2;
+
   }
 
   op->args[pi++] = temp_arg(arg);
@@ -142,29 +157,38 @@ void tcg_gen_afl_maybe_log_call(target_ulong cur_loc) {
   real_args    = 0;
   int is_64bit = orig_sizemask & (1 << 2);
   if (is_64bit) {
+
     tcg_temp_free_internal(args[real_args++]);
     tcg_temp_free_internal(args[real_args++]);
   } else {
+
     real_args++;
+
   }
   if (orig_sizemask & 1) {
+
     /* The 32-bit ABI returned two 32-bit pieces.  Re-assemble them.
        Note that describing these as TCGv_i64 eliminates an unnecessary
        zero-extension that tcg_gen_concat_i32_i64 would create.  */
     tcg_gen_concat32_i64(temp_tcgv_i64(NULL), retl, reth);
     tcg_temp_free_i64(retl);
     tcg_temp_free_i64(reth);
+
   }
 #elif defined(TCG_TARGET_EXTEND_ARGS) && TCG_TARGET_REG_BITS == 64
   int is_64bit = sizemask & (1 << 2);
   if (!is_64bit) {
+
     tcg_temp_free_internal(arg);
+
   }
 #endif /* TCG_TARGET_EXTEND_ARGS */
+
 }
 
 void tcg_gen_afl_compcov_log_call(void *func, target_ulong cur_loc,
                                   TCGv_i64 arg1, TCGv_i64 arg2) {
+
   int      i, real_args, nb_rets, pi;
   unsigned sizemask, flags;
   TCGOp *  op;
@@ -189,9 +213,12 @@ void tcg_gen_afl_compcov_log_call(void *func, target_ulong cur_loc,
   retl = NULL;
   reth = NULL;
   if (sizemask != 0) {
+
     for (i = real_args = 0; i < nargs; ++i) {
+
       int is_64bit = sizemask & (1 << (i + 1) * 2);
       if (is_64bit) {
+
         TCGv_i64 orig = temp_tcgv_i64(args[i]);
         TCGv_i32 h    = tcg_temp_new_i32();
         TCGv_i32 l    = tcg_temp_new_i32();
@@ -199,27 +226,38 @@ void tcg_gen_afl_compcov_log_call(void *func, target_ulong cur_loc,
         split_args[real_args++] = tcgv_i32_temp(h);
         split_args[real_args++] = tcgv_i32_temp(l);
       } else {
+
         split_args[real_args++] = args[i];
+
       }
+
     }
     nargs    = real_args;
     args     = split_args;
     sizemask = 0;
+
   }
 #elif defined(TCG_TARGET_EXTEND_ARGS) && TCG_TARGET_REG_BITS == 64
   for (i = 0; i < nargs; ++i) {
+
     int is_64bit  = sizemask & (1 << (i + 1) * 2);
     int is_signed = sizemask & (2 << (i + 1) * 2);
     if (!is_64bit) {
+
       TCGv_i64 temp = tcg_temp_new_i64();
       TCGv_i64 orig = temp_tcgv_i64(args[i]);
       if (is_signed) {
+
         tcg_gen_ext32s_i64(temp, orig);
       } else {
+
         tcg_gen_ext32u_i64(temp, orig);
+
       }
       args[i] = tcgv_i64_temp(temp);
+
     }
+
   }
 #endif /* TCG_TARGET_EXTEND_ARGS */
 
@@ -231,13 +269,17 @@ void tcg_gen_afl_compcov_log_call(void *func, target_ulong cur_loc,
 
   real_args = 0;
   for (i = 0; i < nargs; i++) {
+
     int is_64bit = sizemask & (1 << (i + 1) * 2);
     if (TCG_TARGET_REG_BITS < 64 && is_64bit) {
+
 #ifdef TCG_TARGET_CALL_ALIGN_ARGS
       /* some targets want aligned 64 bit args */
       if (real_args & 1) {
+
         op->args[pi++] = TCG_CALL_DUMMY_ARG;
         real_args++;
+
       }
 #endif
       /* If stack grows up, then we will be placing successive
@@ -259,10 +301,12 @@ void tcg_gen_afl_compcov_log_call(void *func, target_ulong cur_loc,
 #endif
       real_args += 2;
       continue;
+
     }
 
     op->args[pi++] = temp_arg(args[i]);
     real_args++;
+
   }
   op->args[pi++]  = (uintptr_t)func;
   op->args[pi++]  = flags;
@@ -276,29 +320,41 @@ void tcg_gen_afl_compcov_log_call(void *func, target_ulong cur_loc,
     !defined(CONFIG_TCG_INTERPRETER)
   /* Free all of the parts we allocated above.  */
   for (i = real_args = 0; i < orig_nargs; ++i) {
+
     int is_64bit = orig_sizemask & (1 << (i + 1) * 2);
     if (is_64bit) {
+
       tcg_temp_free_internal(args[real_args++]);
       tcg_temp_free_internal(args[real_args++]);
     } else {
+
       real_args++;
+
     }
+
   }
   if (orig_sizemask & 1) {
+
     /* The 32-bit ABI returned two 32-bit pieces.  Re-assemble them.
        Note that describing these as TCGv_i64 eliminates an unnecessary
        zero-extension that tcg_gen_concat_i32_i64 would create.  */
     tcg_gen_concat32_i64(temp_tcgv_i64(NULL), retl, reth);
     tcg_temp_free_i64(retl);
     tcg_temp_free_i64(reth);
+
   }
 #elif defined(TCG_TARGET_EXTEND_ARGS) && TCG_TARGET_REG_BITS == 64
   for (i = 0; i < nargs; ++i) {
+
     int is_64bit = sizemask & (1 << (i + 1) * 2);
     if (!is_64bit) {
+
       tcg_temp_free_internal(args[i]);
+
     }
+
   }
 #endif /* TCG_TARGET_EXTEND_ARGS */
+
 }
 

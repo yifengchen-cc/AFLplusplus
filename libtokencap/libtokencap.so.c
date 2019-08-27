@@ -45,6 +45,7 @@ static FILE* __tokencap_out_file;
    regions are far more likely to contain user input instead. */
 
 static void __tokencap_load_mappings(void) {
+
   u8    buf[MAX_LINE];
   FILE* f = fopen("/proc/self/maps", "r");
 
@@ -54,6 +55,7 @@ static void __tokencap_load_mappings(void) {
     return;
 
   while (fgets(buf, MAX_LINE, f)) {
+
     u8    rf, wf;
     void *st, *en;
 
@@ -67,14 +69,17 @@ static void __tokencap_load_mappings(void) {
 
     if (++__tokencap_ro_cnt == MAX_MAPPINGS)
       break;
+
   }
 
   fclose(f);
+
 }
 
 /* Check an address against the list of read-only mappings. */
 
 static u8 __tokencap_is_ro(const void* ptr) {
+
   u32 i;
 
   if (!__tokencap_ro_loaded)
@@ -85,12 +90,14 @@ static u8 __tokencap_is_ro(const void* ptr) {
       return 1;
 
   return 0;
+
 }
 
 /* Dump an interesting token to output file, quoting and escaping it
    properly. */
 
 static void __tokencap_dump(const u8* ptr, size_t len, u8 is_text) {
+
   u8  buf[MAX_AUTO_EXTRA * 4 + 1];
   u32 i;
   u32 pos = 0;
@@ -99,10 +106,12 @@ static void __tokencap_dump(const u8* ptr, size_t len, u8 is_text) {
     return;
 
   for (i = 0; i < len; i++) {
+
     if (is_text && !ptr[i])
       break;
 
     switch (ptr[i]) {
+
       case 0 ... 31:
       case 127 ... 255:
       case '\"':
@@ -115,12 +124,15 @@ static void __tokencap_dump(const u8* ptr, size_t len, u8 is_text) {
       default:
 
         buf[pos++] = ptr[i];
+
     }
+
   }
 
   buf[pos] = 0;
 
   fprintf(__tokencap_out_file, "\"%s\"\n", buf);
+
 }
 
 /* Replacements for strcmp(), memcmp(), and so on. Note that these will be used
@@ -129,12 +141,14 @@ static void __tokencap_dump(const u8* ptr, size_t len, u8 is_text) {
 #undef strcmp
 
 int strcmp(const char* str1, const char* str2) {
+
   if (__tokencap_is_ro(str1))
     __tokencap_dump(str1, strlen(str1), 1);
   if (__tokencap_is_ro(str2))
     __tokencap_dump(str2, strlen(str2), 1);
 
   while (1) {
+
     unsigned char c1 = *str1, c2 = *str2;
 
     if (c1 != c2)
@@ -143,18 +157,22 @@ int strcmp(const char* str1, const char* str2) {
       return 0;
     str1++;
     str2++;
+
   }
+
 }
 
 #undef strncmp
 
 int strncmp(const char* str1, const char* str2, size_t len) {
+
   if (__tokencap_is_ro(str1))
     __tokencap_dump(str1, len, 1);
   if (__tokencap_is_ro(str2))
     __tokencap_dump(str2, len, 1);
 
   while (len--) {
+
     unsigned char c1 = *str1, c2 = *str2;
 
     if (!c1)
@@ -163,20 +181,24 @@ int strncmp(const char* str1, const char* str2, size_t len) {
       return (c1 > c2) ? 1 : -1;
     str1++;
     str2++;
+
   }
 
   return 0;
+
 }
 
 #undef strcasecmp
 
 int strcasecmp(const char* str1, const char* str2) {
+
   if (__tokencap_is_ro(str1))
     __tokencap_dump(str1, strlen(str1), 1);
   if (__tokencap_is_ro(str2))
     __tokencap_dump(str2, strlen(str2), 1);
 
   while (1) {
+
     unsigned char c1 = tolower(*str1), c2 = tolower(*str2);
 
     if (c1 != c2)
@@ -185,18 +207,22 @@ int strcasecmp(const char* str1, const char* str2) {
       return 0;
     str1++;
     str2++;
+
   }
+
 }
 
 #undef strncasecmp
 
 int strncasecmp(const char* str1, const char* str2, size_t len) {
+
   if (__tokencap_is_ro(str1))
     __tokencap_dump(str1, len, 1);
   if (__tokencap_is_ro(str2))
     __tokencap_dump(str2, len, 1);
 
   while (len--) {
+
     unsigned char c1 = tolower(*str1), c2 = tolower(*str2);
 
     if (!c1)
@@ -205,33 +231,40 @@ int strncasecmp(const char* str1, const char* str2, size_t len) {
       return (c1 > c2) ? 1 : -1;
     str1++;
     str2++;
+
   }
 
   return 0;
+
 }
 
 #undef memcmp
 
 int memcmp(const void* mem1, const void* mem2, size_t len) {
+
   if (__tokencap_is_ro(mem1))
     __tokencap_dump(mem1, len, 0);
   if (__tokencap_is_ro(mem2))
     __tokencap_dump(mem2, len, 0);
 
   while (len--) {
+
     unsigned char c1 = *(const char*)mem1, c2 = *(const char*)mem2;
     if (c1 != c2)
       return (c1 > c2) ? 1 : -1;
     mem1++;
     mem2++;
+
   }
 
   return 0;
+
 }
 
 #undef strstr
 
 char* strstr(const char* haystack, const char* needle) {
+
   if (__tokencap_is_ro(haystack))
     __tokencap_dump(haystack, strlen(haystack), 1);
 
@@ -239,6 +272,7 @@ char* strstr(const char* haystack, const char* needle) {
     __tokencap_dump(needle, strlen(needle), 1);
 
   do {
+
     const char* n = needle;
     const char* h = haystack;
 
@@ -251,11 +285,13 @@ char* strstr(const char* haystack, const char* needle) {
   } while (*(haystack++));
 
   return 0;
+
 }
 
 #undef strcasestr
 
 char* strcasestr(const char* haystack, const char* needle) {
+
   if (__tokencap_is_ro(haystack))
     __tokencap_dump(haystack, strlen(haystack), 1);
 
@@ -263,6 +299,7 @@ char* strcasestr(const char* haystack, const char* needle) {
     __tokencap_dump(needle, strlen(needle), 1);
 
   do {
+
     const char* n = needle;
     const char* h = haystack;
 
@@ -275,15 +312,18 @@ char* strcasestr(const char* haystack, const char* needle) {
   } while (*(haystack++));
 
   return 0;
+
 }
 
 /* Init code to open the output file (or default to stderr). */
 
 __attribute__((constructor)) void __tokencap_init(void) {
+
   u8* fn = getenv("AFL_TOKEN_FILE");
   if (fn)
     __tokencap_out_file = fopen(fn, "a");
   if (!__tokencap_out_file)
     __tokencap_out_file = stderr;
+
 }
 

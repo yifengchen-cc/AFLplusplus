@@ -43,14 +43,17 @@ extern abi_ulong      afl_start_code, afl_end_code;
 void tcg_gen_afl_maybe_log_call(target_ulong cur_loc);
 
 void afl_maybe_log(target_ulong cur_loc) {
+
   static __thread abi_ulong prev_loc;
 
   afl_area_ptr[cur_loc ^ prev_loc]++;
   prev_loc = cur_loc >> 1;
+
 }
 
 /* Generates TCG code for AFL's tracing instrumentation. */
 static void afl_gen_trace(target_ulong cur_loc) {
+
   /* Optimize for cur_loc > afl_end_code, which is the most likely case on
      Linux systems. */
 
@@ -73,5 +76,6 @@ static void afl_gen_trace(target_ulong cur_loc) {
     return;
 
   tcg_gen_afl_maybe_log_call(cur_loc);
+
 }
 

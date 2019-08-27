@@ -48,12 +48,16 @@ using namespace llvm;
 
 namespace {
 
+
 class AFLCoverage : public ModulePass {
+
  public:
   static char ID;
   AFLCoverage() : ModulePass(ID) {
+
     char *instWhiteListFilename = getenv("AFL_LLVM_WHITELIST");
     if (instWhiteListFilename) {
+
       std::string   line;
       std::ifstream fileStream;
       fileStream.open(instWhiteListFilename);
@@ -61,15 +65,20 @@ class AFLCoverage : public ModulePass {
         report_fatal_error("Unable to open AFL_LLVM_WHITELIST");
       getline(fileStream, line);
       while (fileStream) {
+
         myWhitelist.push_back(line);
         getline(fileStream, line);
+
       }
+
     }
+
   }
 
   bool runOnModule(Module &M) override;
 
   // StringRef getPassName() const override {
+
   //  return "American Fuzzy Lop Instrumentation";
   // }
 
@@ -82,6 +91,7 @@ class AFLCoverage : public ModulePass {
 char AFLCoverage::ID = 0;
 
 bool AFLCoverage::runOnModule(Module &M) {
+
   LLVMContext &C = M.getContext();
 
   IntegerType *Int8Ty  = IntegerType::getInt8Ty(C);
@@ -93,6 +103,7 @@ bool AFLCoverage::runOnModule(Module &M) {
   char be_quiet = 0;
 
   if (isatty(2) && !getenv("AFL_QUIET")) {
+
     SAYF(cCYA "afl-llvm-pass" VERSION cRST " by <lszekeres@google.com>\n");
 
   } else
@@ -104,9 +115,11 @@ bool AFLCoverage::runOnModule(Module &M) {
   unsigned int inst_ratio     = 100;
 
   if (inst_ratio_str) {
+
     if (sscanf(inst_ratio_str, "%u", &inst_ratio) != 1 || !inst_ratio ||
         inst_ratio > 100)
       FATAL("Bad value of AFL_INST_RATIO (must be between 1 and 100)");
+
   }
 
 #if LLVM_VERSION_MAJOR < 9
@@ -130,10 +143,12 @@ bool AFLCoverage::runOnModule(Module &M) {
 
   for (auto &F : M)
     for (auto &BB : F) {
+
       BasicBlock::iterator IP = BB.getFirstInsertionPt();
       IRBuilder<>          IRB(&(*IP));
 
       if (!myWhitelist.empty()) {
+
         bool instrumentBlock = false;
 
         /* Get the current location using debug information.
@@ -141,45 +156,60 @@ bool AFLCoverage::runOnModule(Module &M) {
          * to determine our location. */
         DebugLoc Loc = IP->getDebugLoc();
         if (Loc) {
+
           DILocation *cDILoc = dyn_cast<DILocation>(Loc.getAsMDNode());
 
           unsigned int instLine     = cDILoc->getLine();
           StringRef    instFilename = cDILoc->getFilename();
 
           if (instFilename.str().empty()) {
+
             /* If the original location is empty, try using the inlined location
              */
             DILocation *oDILoc = cDILoc->getInlinedAt();
             if (oDILoc) {
+
               instFilename = oDILoc->getFilename();
               instLine     = oDILoc->getLine();
+
             }
+
           }
 
           /* Continue only if we know where we actually are */
           if (!instFilename.str().empty()) {
+
             for (std::list<std::string>::iterator it = myWhitelist.begin();
                  it != myWhitelist.end(); ++it) {
+
               /* We don't check for filename equality here because
                * filenames might actually be full paths. Instead we
                * check that the actual filename ends in the filename
                * specified in the list. */
               if (instFilename.str().length() >= it->length()) {
+
                 if (instFilename.str().compare(
                         instFilename.str().length() - it->length(),
                         it->length(), *it) == 0) {
+
                   instrumentBlock = true;
                   break;
+
                 }
+
               }
+
             }
+
           }
+
         }
 
         /* Either we couldn't figure out our location or the location is
          * not whitelisted, so we skip instrumentation. */
         if (!instrumentBlock)
           continue;
+
       }
 
       if (AFL_R(100) >= inst_ratio)
@@ -197,19 +227,23 @@ bool AFLCoverage::runOnModule(Module &M) {
       int more_than_one = -1;
       // fprintf(stderr, "BB %u: ", cur_loc);
       for (BasicBlock *Pred : predecessors(&BB)) {
+
         int count = 0;
         if (more_than_one == -1)
           more_than_one = 0;
         // fprintf(stderr, " %p=>", Pred);
         for (BasicBlock *Succ : successors(Pred)) {
+
           // if (count > 0)
           //  fprintf(stderr, "|");
           if (Succ != NULL)
             count++;
           // fprintf(stderr, "%p", Succ);
+
         }
         if (count > 1)
           more_than_one = 1;
+
       }
       // fprintf(stderr, " == %d\n", more_than_one);
       if (more_than_one != 1)
@@ -254,6 +288,7 @@ bool AFLCoverage::runOnModule(Module &M) {
         /*       // we keep the old solutions just in case
                  // Solution #1
                  if (neverZero_counters_str[0] == '1') {
+
                    CallInst *AddOv =
            IRB.CreateBinaryIntrinsic(Intrinsic::uadd_with_overflow, Counter,
            ConstantInt::get(Int8Ty, 1));
@@ -265,12 +300,14 @@ bool AFLCoverage::runOnModule(Module &M) {
            overflow Int8Ty));
                   // Solution #2
                   } else if (neverZero_counters_str[0] == '2') {
+
                      auto cf = IRB.CreateICmpEQ(Counter,
            ConstantInt::get(Int8Ty, 255)); Value *HowMuch =
            IRB.CreateAdd(ConstantInt::get(Int8Ty, 1), cf); Incr =
            IRB.CreateAdd(Counter, HowMuch);
                   // Solution #3
                   } else if (neverZero_counters_str[0] == '3') {
+
         */
         // this is the solution we choose because llvm9 should do the right
         // thing here
@@ -280,15 +317,19 @@ bool AFLCoverage::runOnModule(Module &M) {
 /*
          // Solution #4
          } else if (neverZero_counters_str[0] == '4') {
+
             auto cf = IRB.CreateICmpULT(Incr, ConstantInt::get(Int8Ty, 1));
             auto carry = IRB.CreateZExt(cf, Int8Ty);
             Incr = IRB.CreateAdd(Incr, carry);
          } else {
+
             fprintf(stderr, "Error: unknown value for AFL_NZERO_COUNTS: %s
    (valid is 1-4)\n", neverZero_counters_str); exit(-1);
+
          }
 */
 #if LLVM_VERSION_MAJOR < 9
+
       }
 #endif
 
@@ -302,11 +343,13 @@ bool AFLCoverage::runOnModule(Module &M) {
       Store->setMetadata(M.getMDKindID("nosanitize"), MDNode::get(C, None));
 
       inst_blocks++;
+
     }
 
   /* Say something nice. */
 
   if (!be_quiet) {
+
     if (!inst_blocks)
       WARNF("No instrumentation targets found.");
     else
@@ -317,14 +360,18 @@ bool AFLCoverage::runOnModule(Module &M) {
                      ? "ASAN/MSAN"
                      : "non-hardened"),
           inst_ratio);
+
   }
 
   return true;
+
 }
 
 static void registerAFLPass(const PassManagerBuilder &,
                             legacy::PassManagerBase &PM) {
+
   PM.add(new AFLCoverage());
+
 }
 
 static RegisterStandardPasses RegisterAFLPass(

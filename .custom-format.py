@@ -67,6 +67,11 @@ def custom_format(filename):
             cmt_start = line.rfind("/*")
             line = line[:cmt_start] + " " * (COLUMN_LIMIT-2 - len(line)) + line[cmt_start:]
 
+        elif line.strip().endswith("{"):
+            line += "\n"
+        elif line.strip() == "}":
+            line = "\n" + line
+
         out += line + "\n"
 
     return (out)

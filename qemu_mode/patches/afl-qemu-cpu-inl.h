@@ -92,6 +92,7 @@ static void afl_request_tsl(target_ulong, target_ulong, uint32_t, uint32_t,
 /* Data structures passed around by the translate handlers: */
 
 struct afl_tb {
+
   target_ulong pc;
   target_ulong cs_base;
   uint32_t     flags;
@@ -99,11 +100,13 @@ struct afl_tb {
 };
 
 struct afl_tsl {
+
   struct afl_tb tb;
   char          is_chain;
 };
 
 struct afl_chain {
+
   struct afl_tb last_tb;
   uint32_t      cf_mask;
   int           tb_exit;
@@ -125,11 +128,13 @@ static inline void              tb_add_jump(TranslationBlock *tb, int n,
 /* Set up SHM region and initialize other stuff. */
 
 static void afl_setup(void) {
+
   char *id_str = getenv(SHM_ENV_VAR), *inst_r = getenv("AFL_INST_RATIO");
 
   int shm_id;
 
   if (inst_r) {
+
     unsigned int r;
 
     r = atoi(inst_r);
@@ -140,9 +145,11 @@ static void afl_setup(void) {
       r = 1;
 
     afl_inst_rms = MAP_SIZE * r / 100;
+
   }
 
   if (id_str) {
+
     shm_id       = atoi(id_str);
     afl_area_ptr = shmat(shm_id, NULL, 0);
 
@@ -154,15 +161,20 @@ static void afl_setup(void) {
 
     if (inst_r)
       afl_area_ptr[0] = 1;
+
   }
 
   if (getenv("AFL_INST_LIBS")) {
+
     afl_start_code = 0;
     afl_end_code   = (abi_ulong)-1;
+
   }
 
   if (getenv("AFL_QEMU_COMPCOV")) {
+
     afl_enable_compcov = 1;
+
   }
 
   /* pthread_atfork() seems somewhat broken in util/rcu.c, and I'm
@@ -170,11 +182,13 @@ static void afl_setup(void) {
      behaviour, and seems to work alright? */
 
   rcu_disable_atfork();
+
 }
 
 /* Fork server logic, invoked once we hit _start. */
 
 static void afl_forkserver(CPUState *cpu) {
+
   static unsigned char tmp[4];
 
   if (forkserver_installed == 1)
@@ -193,6 +207,7 @@ static void afl_forkserver(CPUState *cpu) {
   /* All right, let's await orders... */
 
   while (1) {
+
     pid_t child_pid;
     int   status, t_fd[2];
 
@@ -213,6 +228,7 @@ static void afl_forkserver(CPUState *cpu) {
       exit(4);
 
     if (!child_pid) {
+
       /* Child process. Close descriptors and run free. */
 
       afl_fork_child = 1;
@@ -220,6 +236,7 @@ static void afl_forkserver(CPUState *cpu) {
       close(FORKSRV_FD + 1);
       close(t_fd[0]);
       return;
+
     }
 
     /* Parent. */
@@ -239,7 +256,9 @@ static void afl_forkserver(CPUState *cpu) {
       exit(6);
     if (write(FORKSRV_FD + 1, &status, 4) != 4)
       exit(7);
+
   }
+
 }
 
 /* This code is invoked whenever QEMU decides that it doesn't have a
@@ -250,6 +269,7 @@ static void afl_forkserver(CPUState *cpu) {
 static void afl_request_tsl(target_ulong pc, target_ulong cb, uint32_t flags,
                             uint32_t cf_mask, TranslationBlock *last_tb,
                             int tb_exit) {
+
   struct afl_tsl   t;
   struct afl_chain c;
 
@@ -266,6 +286,7 @@ static void afl_request_tsl(target_ulong pc, target_ulong cb, uint32_t flags,
     return;
 
   if (t.is_chain) {
+
     c.last_tb.pc      = last_tb->pc;
     c.last_tb.cs_base = last_tb->cs_base;
     c.last_tb.flags   = last_tb->flags;
@@ -274,12 +295,15 @@ static void afl_request_tsl(target_ulong pc, target_ulong cb, uint32_t flags,
 
     if (write(TSL_FD, &c, sizeof(struct afl_chain)) != sizeof(struct afl_chain))
       return;
+
   }
+
 }
 
 /* Check if an address is valid in the current mapping */
 
 static inline int is_valid_addr(target_ulong addr) {
+
   int          l, flags;
   target_ulong page;
   void *       p;
@@ -292,17 +316,20 @@ static inline int is_valid_addr(target_ulong addr) {
     return 0;
 
   return 1;
+
 }
 
 /* This is the other side of the same channel. Since timeouts are handled by
    afl-fuzz simply killing the child, we can just wait until the pipe breaks. */
 
 static void afl_wait_tsl(CPUState *cpu, int fd) {
+
   struct afl_tsl    t;
   struct afl_chain  c;
   TranslationBlock *tb, *last_tb;
 
   while (1) {
+
     u8 invalid_pc = 0;
 
     /* Broken pipe means it's time to return to the fork server routine. */
@@ -313,34 +340,47 @@ static void afl_wait_tsl(CPUState *cpu, int fd) {
     tb = tb_htable_lookup(cpu, t.tb.pc, t.tb.cs_base, t.tb.flags, t.tb.cf_mask);
 
     if (!tb) {
+
       /* The child may request to transate a block of memory that is not
          mapped in the parent (e.g. jitted code or dlopened code).
          This causes a SIGSEV in gen_intermediate_code() and associated
          subroutines. We simply avoid caching of such blocks. */
 
       if (is_valid_addr(t.tb.pc)) {
+
         mmap_lock();
         tb = tb_gen_code(cpu, t.tb.pc, t.tb.cs_base, t.tb.flags, 0);
         mmap_unlock();
       } else {
+
         invalid_pc = 1;
+
       }
+
     }
 
     if (t.is_chain) {
+
       if (read(fd, &c, sizeof(struct afl_chain)) != sizeof(struct afl_chain))
         break;
 
       if (!invalid_pc) {
+
         last_tb = tb_htable_lookup(cpu, c.last_tb.pc, c.last_tb.cs_base,
                                    c.last_tb.flags, c.cf_mask);
         if (last_tb) {
+
           tb_add_jump(last_tb, c.tb_exit, tb);
+
         }
+
       }
+
     }
+
   }
 
   close(fd);
+
 }
 

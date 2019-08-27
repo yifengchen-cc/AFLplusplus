@@ -53,24 +53,30 @@ static u8   be_quiet,                  /* Quiet mode                        */
    from argv[0]. If that fails, abort. */
 
 static void find_as(u8* argv0) {
+
   u8* afl_path = getenv("AFL_PATH");
   u8 *slash, *tmp;
 
   if (afl_path) {
+
     tmp = alloc_printf("%s/as", afl_path);
 
     if (!access(tmp, X_OK)) {
+
       as_path = afl_path;
       ck_free(tmp);
       return;
+
     }
 
     ck_free(tmp);
+
   }
 
   slash = strrchr(argv0, '/');
 
   if (slash) {
+
     u8* dir;
 
     *slash = 0;
@@ -80,26 +86,33 @@ static void find_as(u8* argv0) {
     tmp = alloc_printf("%s/afl-as", dir);
 
     if (!access(tmp, X_OK)) {
+
       as_path = dir;
       ck_free(tmp);
       return;
+
     }
 
     ck_free(tmp);
     ck_free(dir);
+
   }
 
   if (!access(AFL_PATH "/as", X_OK)) {
+
     as_path = AFL_PATH;
     return;
+
   }
 
   FATAL("Unable to find AFL wrapper binary for 'as'. Please set AFL_PATH");
+
 }
 
 /* Copy argv to cc_params, making the necessary edits. */
 
 static void edit_params(u32 argc, char** argv) {
+
   u8  fortify_set = 0, asan_set = 0;
   u8* name;
 
@@ -116,19 +129,24 @@ static void edit_params(u32 argc, char** argv) {
     name++;
 
   if (!strncmp(name, "afl-clang", 9)) {
+
     clang_mode = 1;
 
     setenv(CLANG_ENV_VAR, "1", 1);
 
     if (!strcmp(name, "afl-clang++")) {
+
       u8* alt_cxx  = getenv("AFL_CXX");
       cc_params[0] = alt_cxx ? alt_cxx : (u8*)"clang++";
     } else {
+
       u8* alt_cc   = getenv("AFL_CC");
       cc_params[0] = alt_cc ? alt_cc : (u8*)"clang";
+
     }
 
   } else {
+
     /* With GCJ and Eclipse installed, you can actually compile Java! The
        instrumentation will work (amazingly). Alas, unhandled exceptions do
        not call abort(), so afl-fuzz would need to be modified to equate
@@ -145,6 +163,7 @@ static void edit_params(u32 argc, char** argv) {
       cc_params[0] = getenv("AFL_CC");
 
     if (!cc_params[0]) {
+
       SAYF("\n" cLRD "[-] " cRST
            "On Apple systems, 'gcc' is usually just a wrapper for clang. "
            "Please use the\n"
@@ -154,36 +173,47 @@ static void edit_params(u32 argc, char** argv) {
            "compiler.\n");
 
       FATAL("AFL_CC or AFL_CXX required on MacOS X");
+
     }
 
 #else
 
     if (!strcmp(name, "afl-g++")) {
+
       u8* alt_cxx  = getenv("AFL_CXX");
       cc_params[0] = alt_cxx ? alt_cxx : (u8*)"g++";
     } else if (!strcmp(name, "afl-gcj")) {
+
       u8* alt_cc   = getenv("AFL_GCJ");
       cc_params[0] = alt_cc ? alt_cc : (u8*)"gcj";
     } else {
+
       u8* alt_cc   = getenv("AFL_CC");
       cc_params[0] = alt_cc ? alt_cc : (u8*)"gcc";
+
     }
 
 #endif /* __APPLE__ */
+
   }
 
   while (--argc) {
+
     u8* cur = *(++argv);
 
     if (!strncmp(cur, "-B", 2)) {
+
       if (!be_quiet)
         WARNF("-B is already set, overriding");
 
       if (!cur[2] && argc > 1) {
+
         argc--;
         argv++;
+
       }
       continue;
+
     }
 
     if (!strcmp(cur, "-integrated-as"))
@@ -204,6 +234,7 @@ static void edit_params(u32 argc, char** argv) {
       fortify_set = 1;
 
     cc_params[cc_par_cnt++] = cur;
+
   }
 
   cc_params[cc_par_cnt++] = "-B";
@@ -213,18 +244,22 @@ static void edit_params(u32 argc, char** argv) {
     cc_params[cc_par_cnt++] = "-no-integrated-as";
 
   if (getenv("AFL_HARDEN")) {
+
     cc_params[cc_par_cnt++] = "-fstack-protector-all";
 
     if (!fortify_set)
       cc_params[cc_par_cnt++] = "-D_FORTIFY_SOURCE=2";
+
   }
 
   if (asan_set) {
+
     /* Pass this on to afl-as to adjust map density. */
 
     setenv("AFL_USE_ASAN", "1", 1);
 
   } else if (getenv("AFL_USE_ASAN")) {
+
     if (getenv("AFL_USE_MSAN"))
       FATAL("ASAN and MSAN are mutually exclusive");
 
@@ -235,6 +270,7 @@ static void edit_params(u32 argc, char** argv) {
     cc_params[cc_par_cnt++] = "-fsanitize=address";
 
   } else if (getenv("AFL_USE_MSAN")) {
+
     if (getenv("AFL_USE_ASAN"))
       FATAL("ASAN and MSAN are mutually exclusive");
 
@@ -243,6 +279,7 @@ static void edit_params(u32 argc, char** argv) {
 
     cc_params[cc_par_cnt++] = "-U_FORTIFY_SOURCE";
     cc_params[cc_par_cnt++] = "-fsanitize=memory";
+
   }
 
 #ifdef USEMMAP
@@ -250,6 +287,7 @@ static void edit_params(u32 argc, char** argv) {
 #endif
 
   if (!getenv("AFL_DONT_OPTIMIZE")) {
+
 #if defined(__FreeBSD__) && defined(__x86_64__)
 
     /* On 64-bit FreeBSD systems, clang -g -m32 is broken, but -m32 itself
@@ -273,9 +311,11 @@ static void edit_params(u32 argc, char** argv) {
 
     cc_params[cc_par_cnt++] = "-D__AFL_COMPILER=1";
     cc_params[cc_par_cnt++] = "-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION=1";
+
   }
 
   if (getenv("AFL_NO_BUILTIN")) {
+
     cc_params[cc_par_cnt++] = "-fno-builtin-strcmp";
     cc_params[cc_par_cnt++] = "-fno-builtin-strncmp";
     cc_params[cc_par_cnt++] = "-fno-builtin-strcasecmp";
@@ -283,15 +323,19 @@ static void edit_params(u32 argc, char** argv) {
     cc_params[cc_par_cnt++] = "-fno-builtin-memcmp";
     cc_params[cc_par_cnt++] = "-fno-builtin-strstr";
     cc_params[cc_par_cnt++] = "-fno-builtin-strcasestr";
+
   }
 
   cc_params[cc_par_cnt] = NULL;
+
 }
 
 /* Main entry point */
 
 int main(int argc, char** argv) {
+
   if (isatty(2) && !getenv("AFL_QUIET")) {
+
     SAYF(cCYA "afl-cc" VERSION cRST " by <lcamtuf@google.com>\n");
     SAYF(cYEL "[!] " cBRI "NOTE: " cRST
               "afl-gcc is deprecated, llvm_mode is much faster and has more "
@@ -301,6 +345,7 @@ int main(int argc, char** argv) {
     be_quiet = 1;
 
   if (argc < 2) {
+
     SAYF(
         "\n"
         "This is a helper application for afl-fuzz. It serves as a drop-in "
@@ -320,6 +365,7 @@ int main(int argc, char** argv) {
         BIN_PATH, BIN_PATH);
 
     exit(1);
+
   }
 
   find_as(argv[0]);
@@ -331,5 +377,6 @@ int main(int argc, char** argv) {
   FATAL("Oops, failed to execute '%s' - check your PATH", cc_params[0]);
 
   return 0;
+
 }
 

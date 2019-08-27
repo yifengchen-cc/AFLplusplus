@@ -88,15 +88,18 @@ static __thread u32 call_depth;         /* To avoid recursion via fprintf() */
    the returned memory will be zeroed. */
 
 static void* __dislocator_alloc(size_t len) {
+
   void* ret;
 
   if (total_mem + len > max_mem || total_mem + len < total_mem) {
+
     if (hard_fail)
       FATAL("total allocs exceed %u MB", max_mem / 1024 / 1024);
 
     DEBUGF("total allocs exceed %u MB, returning NULL", max_mem / 1024 / 1024);
 
     return NULL;
+
   }
 
   /* We will also store buffer length and a canary below the actual buffer, so
@@ -106,12 +109,14 @@ static void* __dislocator_alloc(size_t len) {
              MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
   if (ret == (void*)-1) {
+
     if (hard_fail)
       FATAL("mmap() failed on alloc (OOM?)");
 
     DEBUGF("mmap() failed on alloc (OOM?)");
 
     return NULL;
+
   }
 
   /* Set PROT_NONE on the last page. */
@@ -134,12 +139,14 @@ static void* __dislocator_alloc(size_t len) {
   total_mem += len;
 
   return ret;
+
 }
 
 /* The "user-facing" wrapper for calloc(). This just checks for overflows and
    displays debug messages if requested. */
 
 void* calloc(size_t elem_len, size_t elem_cnt) {
+
   void* ret;
 
   size_t len = elem_len * elem_cnt;
@@ -147,13 +154,17 @@ void* calloc(size_t elem_len, size_t elem_cnt) {
   /* Perform some sanity checks to detect obvious issues... */
 
   if (elem_cnt && len / elem_cnt != elem_len) {
+
     if (no_calloc_over) {
+
       DEBUGF("calloc(%zu, %zu) would overflow, returning NULL", elem_len,
              elem_cnt);
       return NULL;
+
     }
 
     FATAL("calloc(%zu, %zu) would overflow", elem_len, elem_cnt);
+
   }
 
   ret = __dislocator_alloc(len);
@@ -162,6 +173,7 @@ void* calloc(size_t elem_len, size_t elem_cnt) {
          total_mem);
 
   return ret;
+
 }
 
 /* The wrapper for malloc(). Roughly the same, also clobbers the returned
@@ -169,6 +181,7 @@ void* calloc(size_t elem_len, size_t elem_cnt) {
    memory). */
 
 void* malloc(size_t len) {
+
   void* ret;
 
   ret = __dislocator_alloc(len);
@@ -179,6 +192,7 @@ void* malloc(size_t len) {
     memset(ret, ALLOC_CLOBBER, len);
 
   return ret;
+
 }
 
 /* The wrapper for free(). This simply marks the entire region as PROT_NONE.
@@ -186,6 +200,7 @@ void* malloc(size_t len) {
    read the canary. Not very graceful, but works, right? */
 
 void free(void* ptr) {
+
   u32 len;
 
   DEBUGF("free(%p)", ptr);
@@ -209,40 +224,49 @@ void free(void* ptr) {
     FATAL("mprotect() failed when freeing memory");
 
   /* Keep the mapping; this is wasteful, but prevents ptr reuse. */
+
 }
 
 /* Realloc is pretty straightforward, too. We forcibly reallocate the buffer,
    move data, and then free (aka mprotect()) the original one. */
 
 void* realloc(void* ptr, size_t len) {
+
   void* ret;
 
   ret = malloc(len);
 
   if (ret && ptr) {
+
     if (PTR_C(ptr) != ALLOC_CANARY)
       FATAL("bad allocator canary on realloc()");
 
     memcpy(ret, ptr, MIN(len, PTR_L(ptr)));
     free(ptr);
+
   }
 
   DEBUGF("realloc(%p, %zu) = %p [%zu total]", ptr, len, ret, total_mem);
 
   return ret;
+
 }
 
 __attribute__((constructor)) void __dislocator_init(void) {
+
   u8* tmp = getenv("AFL_LD_LIMIT_MB");
 
   if (tmp) {
+
     max_mem = atoi(tmp) * 1024 * 1024;
     if (!max_mem)
       FATAL("Bad value for AFL_LD_LIMIT_MB");
+
   }
 
   alloc_verbose  = !!getenv("AFL_LD_VERBOSE");
   hard_fail      = !!getenv("AFL_LD_HARD_FAIL");
   no_calloc_over = !!getenv("AFL_LD_NO_CALLOC_OVER");
+
 }
 

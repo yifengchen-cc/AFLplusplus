@@ -79,6 +79,7 @@ static volatile u8 stop_soon,          /* Ctrl-C pressed?                   */
 
 static const u8 count_class_human[256] = {
 
+
     [0] = 0,          [1] = 1,        [2] = 2,         [3] = 3,
     [4 ... 7] = 4,    [8 ... 15] = 5, [16 ... 31] = 6, [32 ... 127] = 7,
     [128 ... 255] = 8
@@ -86,6 +87,7 @@ static const u8 count_class_human[256] = {
 };
 
 static const u8 count_class_binary[256] = {
+
 
     [0]           = 0,
     [1]           = 1,
@@ -100,26 +102,36 @@ static const u8 count_class_binary[256] = {
 };
 
 static void classify_counts(u8* mem, const u8* map) {
+
   u32 i = MAP_SIZE;
 
   if (edges_only) {
+
     while (i--) {
+
       if (*mem)
         *mem = 1;
       mem++;
+
     }
 
   } else if (!raw_instr_output) {
+
     while (i--) {
+
       *mem = map[*mem];
       mem++;
+
     }
+
   }
+
 }
 
 /* Write results. */
 
 static u32 write_results(void) {
+
   s32 fd;
   u32 i, ret = 0;
 
@@ -127,23 +139,28 @@ static u32 write_results(void) {
      caa = !!getenv("AFL_CMIN_ALLOW_ANY");
 
   if (!strncmp(out_file, "/dev/", 5)) {
+
     fd = open(out_file, O_WRONLY, 0600);
     if (fd < 0)
       PFATAL("Unable to open '%s'", out_file);
 
   } else if (!strcmp(out_file, "-")) {
+
     fd = dup(1);
     if (fd < 0)
       PFATAL("Unable to open stdout");
 
   } else {
+
     unlink(out_file);                                      /* Ignore errors */
     fd = open(out_file, O_WRONLY | O_CREAT | O_EXCL, 0600);
     if (fd < 0)
       PFATAL("Unable to create '%s'", out_file);
+
   }
 
   if (binary_mode) {
+
     for (i = 0; i < MAP_SIZE; i++)
       if (trace_bits[i])
         ret++;
@@ -152,12 +169,14 @@ static u32 write_results(void) {
     close(fd);
 
   } else {
+
     FILE* f = fdopen(fd, "w");
 
     if (!f)
       PFATAL("fdopen() failed");
 
     for (i = 0; i < MAP_SIZE; i++) {
+
       if (!trace_bits[i])
         continue;
       ret++;
@@ -167,6 +186,7 @@ static u32 write_results(void) {
         highest = trace_bits[i];
 
       if (cmin_mode) {
+
         if (child_timed_out)
           break;
         if (!caa && child_crashed != cco)
@@ -176,25 +196,31 @@ static u32 write_results(void) {
 
       } else
         fprintf(f, "%06u:%u\n", i, trace_bits[i]);
+
     }
 
     fclose(f);
+
   }
 
   return ret;
+
 }
 
 /* Handle timeout signal. */
 
 static void handle_timeout(int sig) {
+
   child_timed_out = 1;
   if (child_pid > 0)
     kill(child_pid, SIGKILL);
+
 }
 
 /* Execute target application. */
 
 static void run_target(char** argv) {
+
   static struct itimerval it;
   int                     status = 0;
 
@@ -209,20 +235,26 @@ static void run_target(char** argv) {
     PFATAL("fork() failed");
 
   if (!child_pid) {
+
     struct rlimit r;
 
     if (quiet_mode) {
+
       s32 fd = open("/dev/null", O_RDWR);
 
       if (fd < 0 || dup2(fd, 1) < 0 || dup2(fd, 2) < 0) {
+
         *(u32*)trace_bits = EXEC_FAIL_SIG;
         PFATAL("Descriptor initialization failed");
+
       }
 
       close(fd);
+
     }
 
     if (mem_limit) {
+
       r.rlim_max = r.rlim_cur = ((rlim_t)mem_limit) << 20;
 
 #ifdef RLIMIT_AS
@@ -234,6 +266,7 @@ static void run_target(char** argv) {
       setrlimit(RLIMIT_DATA, &r);                          /* Ignore errors */
 
 #endif /* ^RLIMIT_AS */
+
     }
 
     if (!keep_cores)
@@ -252,14 +285,17 @@ static void run_target(char** argv) {
 
     *(u32*)trace_bits = EXEC_FAIL_SIG;
     exit(0);
+
   }
 
   /* Configure timeout, wait for child, cancel timeout. */
 
   if (exec_tmout) {
+
     child_timed_out     = 0;
     it.it_value.tv_sec  = (exec_tmout / 1000);
     it.it_value.tv_usec = (exec_tmout % 1000) * 1000;
+
   }
 
   setitimer(ITIMER_REAL, &it, NULL);
@@ -289,6 +325,7 @@ static void run_target(char** argv) {
     child_crashed = 1;
 
   if (!quiet_mode) {
+
     if (child_timed_out)
       SAYF(cLRD "\n+++ Program timed off +++\n" cRST);
     else if (stop_soon)
@@ -296,21 +333,26 @@ static void run_target(char** argv) {
     else if (child_crashed)
       SAYF(cLRD "\n+++ Program killed by signal %u +++\n" cRST,
            WTERMSIG(status));
+
   }
+
 }
 
 /* Handle Ctrl-C and the like. */
 
 static void handle_stop_sig(int sig) {
+
   stop_soon = 1;
 
   if (child_pid > 0)
     kill(child_pid, SIGKILL);
+
 }
 
 /* Do basic preparations - persistent fds, filenames, etc. */
 
 static void set_up_environment(void) {
+
   setenv("ASAN_OPTIONS",
          "abort_on_error=1:"
          "detect_leaks=0:"
@@ -325,14 +367,18 @@ static void set_up_environment(void) {
                          "msan_track_origins=0", 0);
 
   if (getenv("AFL_PRELOAD")) {
+
     setenv("LD_PRELOAD", getenv("AFL_PRELOAD"), 1);
     setenv("DYLD_INSERT_LIBRARIES", getenv("AFL_PRELOAD"), 1);
+
   }
+
 }
 
 /* Setup signal handlers, duh. */
 
 static void setup_signal_handlers(void) {
+
   struct sigaction sa;
 
   sa.sa_handler   = NULL;
@@ -352,17 +398,21 @@ static void setup_signal_handlers(void) {
 
   sa.sa_handler = handle_timeout;
   sigaction(SIGALRM, &sa, NULL);
+
 }
 
 /* Show banner. */
 
 static void show_banner(void) {
+
   SAYF(cCYA "afl-showmap" VERSION cRST " by <lcamtuf@google.com>\n");
+
 }
 
 /* Display usage hints. */
 
 static void usage(u8* argv0) {
+
   show_banner();
 
   SAYF(
@@ -394,15 +444,18 @@ static void usage(u8* argv0) {
       argv0, MEM_LIMIT, doc_path);
 
   exit(1);
+
 }
 
 /* Find binary. */
 
 static void find_binary(u8* fname) {
+
   u8*         env_path = 0;
   struct stat st;
 
   if (strchr(fname, '/') || !(env_path = getenv("PATH"))) {
+
     target_path = ck_strdup(fname);
 
     if (stat(target_path, &st) || !S_ISREG(st.st_mode) ||
@@ -410,10 +463,13 @@ static void find_binary(u8* fname) {
       FATAL("Program '%s' not found or not executable", fname);
 
   } else {
+
     while (env_path) {
+
       u8 *cur_elem, *delim = strchr(env_path, ':');
 
       if (delim) {
+
         cur_elem = ck_alloc(delim - env_path + 1);
         memcpy(cur_elem, env_path, delim - env_path);
         delim++;
@@ -436,16 +492,20 @@ static void find_binary(u8* fname) {
 
       ck_free(target_path);
       target_path = 0;
+
     }
 
     if (!target_path)
       FATAL("Program '%s' not found or not executable", fname);
+
   }
+
 }
 
 /* Fix up argv for QEMU. */
 
 static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
+
   char** new_argv = ck_alloc(sizeof(char*) * (argc + 4));
   u8 *   tmp, *cp, *rsl, *own_copy;
 
@@ -459,6 +519,7 @@ static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
   tmp = getenv("AFL_PATH");
 
   if (tmp) {
+
     cp = alloc_printf("%s/afl-qemu-trace", tmp);
 
     if (access(cp, X_OK))
@@ -466,36 +527,44 @@ static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
 
     target_path = new_argv[0] = cp;
     return new_argv;
+
   }
 
   own_copy = ck_strdup(own_loc);
   rsl      = strrchr(own_copy, '/');
 
   if (rsl) {
+
     *rsl = 0;
 
     cp = alloc_printf("%s/afl-qemu-trace", own_copy);
     ck_free(own_copy);
 
     if (!access(cp, X_OK)) {
+
       target_path = new_argv[0] = cp;
       return new_argv;
+
     }
 
   } else
     ck_free(own_copy);
 
   if (!access(BIN_PATH "/afl-qemu-trace", X_OK)) {
+
     target_path = new_argv[0] = BIN_PATH "/afl-qemu-trace";
     return new_argv;
+
   }
 
   FATAL("Unable to find 'afl-qemu-trace'.");
+
 }
 
 /* Main entry point */
 
 int main(int argc, char** argv) {
+
   s32 opt;
   u8  mem_limit_given = 0, timeout_given = 0, qemu_mode = 0, unicorn_mode = 0;
   u32 tcnt = 0;
@@ -506,6 +575,7 @@ int main(int argc, char** argv) {
   while ((opt = getopt(argc, argv, "+o:m:t:A:eqZQUbcr")) > 0)
 
     switch (opt) {
+
       case 'o':
 
         if (out_file)
@@ -514,6 +584,7 @@ int main(int argc, char** argv) {
         break;
 
       case 'm': {
+
         u8 suffix = 'M';
 
         if (mem_limit_given)
@@ -521,8 +592,10 @@ int main(int argc, char** argv) {
         mem_limit_given = 1;
 
         if (!strcmp(optarg, "none")) {
+
           mem_limit = 0;
           break;
+
         }
 
         if (sscanf(optarg, "%llu%c", &mem_limit, &suffix) < 1 ||
@@ -530,6 +603,7 @@ int main(int argc, char** argv) {
           FATAL("Bad syntax used for -m");
 
         switch (suffix) {
+
           case 'T':
             mem_limit *= 1024 * 1024;
             break;
@@ -544,6 +618,7 @@ int main(int argc, char** argv) {
 
           default:
             FATAL("Unsupported suffix or bad syntax for -m");
+
         }
 
         if (mem_limit < 5)
@@ -551,6 +626,7 @@ int main(int argc, char** argv) {
 
         if (sizeof(rlim_t) == 4 && mem_limit > 2000)
           FATAL("Value of -m out of range on 32-bit systems");
+
 
       }
 
@@ -563,10 +639,12 @@ int main(int argc, char** argv) {
         timeout_given = 1;
 
         if (strcmp(optarg, "none")) {
+
           exec_tmout = atoi(optarg);
 
           if (exec_tmout < 20 || optarg[0] == '-')
             FATAL("Dangerously low value of -t");
+
         }
 
         break;
@@ -649,6 +727,7 @@ int main(int argc, char** argv) {
       default:
 
         usage(argv[0]);
+
     }
 
   if (optind == argc || !out_file)
@@ -662,8 +741,10 @@ int main(int argc, char** argv) {
   find_binary(argv[optind]);
 
   if (!quiet_mode) {
+
     show_banner();
     ACTF("Executing '%s'...\n", target_path);
+
   }
 
   detect_file_args(argv + optind, at_file);
@@ -678,12 +759,15 @@ int main(int argc, char** argv) {
   tcnt = write_results();
 
   if (!quiet_mode) {
+
     if (!tcnt)
       FATAL("No instrumentation detected" cRST);
     OKF("Captured %u tuples (highest value %u, total values %u) in '%s'." cRST,
         tcnt, highest, total, out_file);
+
   }
 
   exit(child_crashed * 2 + child_timed_out);
+
 }
 

@@ -34,12 +34,14 @@
 #  define ROL64(_x, _r) ((((u64)(_x)) << (_r)) | (((u64)(_x)) >> (64 - (_r))))
 
 static inline u32 hash32(const void* key, u32 len, u32 seed) {
+
   const u64* data = (u64*)key;
   u64        h1   = seed ^ len;
 
   len >>= 3;
 
   while (len--) {
+
     u64 k1 = *data++;
 
     k1 *= 0x87c37b91114253d5ULL;
@@ -49,6 +51,7 @@ static inline u32 hash32(const void* key, u32 len, u32 seed) {
     h1 ^= k1;
     h1 = ROL64(h1, 27);
     h1 = h1 * 5 + 0x52dce729;
+
   }
 
   h1 ^= h1 >> 33;
@@ -58,6 +61,7 @@ static inline u32 hash32(const void* key, u32 len, u32 seed) {
   h1 ^= h1 >> 33;
 
   return h1;
+
 }
 
 #else
@@ -65,12 +69,14 @@ static inline u32 hash32(const void* key, u32 len, u32 seed) {
 #  define ROL32(_x, _r) ((((u32)(_x)) << (_r)) | (((u32)(_x)) >> (32 - (_r))))
 
 static inline u32 hash32(const void* key, u32 len, u32 seed) {
+
   const u32* data = (u32*)key;
   u32        h1   = seed ^ len;
 
   len >>= 2;
 
   while (len--) {
+
     u32 k1 = *data++;
 
     k1 *= 0xcc9e2d51;
@@ -80,6 +86,7 @@ static inline u32 hash32(const void* key, u32 len, u32 seed) {
     h1 ^= k1;
     h1 = ROL32(h1, 13);
     h1 = h1 * 5 + 0xe6546b64;
+
   }
 
   h1 ^= h1 >> 16;
@@ -89,6 +96,7 @@ static inline u32 hash32(const void* key, u32 len, u32 seed) {
   h1 ^= h1 >> 16;
 
   return h1;
+
 }
 
 #endif /* ^__x86_64__ */

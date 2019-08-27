@@ -36,27 +36,37 @@ using namespace llvm;
 
 namespace {
 
+
 class SplitSwitchesTransform : public ModulePass {
+
  public:
   static char ID;
   SplitSwitchesTransform() : ModulePass(ID) {
+
+
   }
 
   bool runOnModule(Module &M) override;
 
 #if LLVM_VERSION_MAJOR >= 4
   StringRef getPassName() const override {
+
 #else
   const char *getPassName() const override {
+
 #endif
     return "splits switch constructs";
+
   }
   struct CaseExpr {
+
     ConstantInt *Val;
     BasicBlock * BB;
 
     CaseExpr(ConstantInt *val = nullptr, BasicBlock *bb = nullptr)
         : Val(val), BB(bb) {
+
+
     }
   };
 
@@ -79,6 +89,7 @@ char SplitSwitchesTransform::ID = 0;
 BasicBlock *SplitSwitchesTransform::switchConvert(
     CaseVector Cases, std::vector<bool> bytesChecked, BasicBlock *OrigBlock,
     BasicBlock *NewDefault, Value *Val, unsigned level) {
+
   unsigned     ValTypeBitWidth = Cases[0].Val->getBitWidth();
   IntegerType *ValType =
       IntegerType::get(OrigBlock->getContext(), ValTypeBitWidth);
@@ -92,10 +103,14 @@ BasicBlock *SplitSwitchesTransform::switchConvert(
   /* for each of the possible cases we iterate over all bytes of the values
    * build a set of possible values at each byte position in byteSets */
   for (CaseExpr &Case : Cases) {
+
     for (unsigned i = 0; i < BytesInValue; i++) {
+
       uint8_t byte = (Case.Val->getZExtValue() >> (i * 8)) & 0xFF;
       byteSets[i].insert(byte);
+
     }
+
   }
 
   /* find the index of the first byte position that was not yet checked. then
@@ -103,12 +118,16 @@ BasicBlock *SplitSwitchesTransform::switchConvert(
   unsigned smallestIndex = 0;
   unsigned smallestSize  = 257;
   for (unsigned i = 0; i < byteSets.size(); i++) {
+
     if (bytesChecked[i])
       continue;
     if (byteSets[i].size() < smallestSize) {
+
       smallestIndex = i;
       smallestSize  = byteSets[i].size();
+
     }
+
   }
   assert(bytesChecked[smallestIndex] == false);
 
@@ -122,11 +141,14 @@ BasicBlock *SplitSwitchesTransform::switchConvert(
   NewNode->getInstList().push_back(Shift);
 
   if (ValTypeBitWidth > 8) {
+
     Trunc = new TruncInst(Shift, ByteType);
     NewNode->getInstList().push_back(Trunc);
   } else {
+
     /* not necessary to trunc */
     Trunc = Shift;
+
   }
 
   /* this is a trivial case, we can directly check for the byte,
@@ -135,6 +157,7 @@ BasicBlock *SplitSwitchesTransform::switchConvert(
    * we can finally execute the block belonging to this case */
 
   if (smallestSize == 1) {
+
     uint8_t byte = *(byteSets[smallestIndex].begin());
 
     /* insert instructions to check whether the value we are switching on is
@@ -147,34 +170,47 @@ BasicBlock *SplitSwitchesTransform::switchConvert(
     bytesChecked[smallestIndex] = true;
     if (std::all_of(bytesChecked.begin(), bytesChecked.end(),
                     [](bool b) { return b; })) {
+
       assert(Cases.size() == 1);
       BranchInst::Create(Cases[0].BB, NewDefault, Comp, NewNode);
 
       /* we have to update the phi nodes! */
       for (BasicBlock::iterator I = Cases[0].BB->begin();
            I != Cases[0].BB->end(); ++I) {
+
         if (!isa<PHINode>(&*I)) {
+
           continue;
+
         }
         PHINode *PN = cast<PHINode>(I);
 
         /* Only update the first occurrence. */
         unsigned Idx = 0, E = PN->getNumIncomingValues();
         for (; Idx != E; ++Idx) {
+
           if (PN->getIncomingBlock(Idx) == OrigBlock) {
+
             PN->setIncomingBlock(Idx, NewNode);
             break;
+
           }
+
         }
+
       }
     } else {
+
       BasicBlock *BB = switchConvert(Cases, bytesChecked, OrigBlock, NewDefault,
                                      Val, level + 1);
       BranchInst::Create(BB, NewDefault, Comp, NewNode);
+
     }
+
   }
   /* there is no byte which we can directly check on, split the tree */
   else {
+
     std::vector<uint8_t> byteVector;
     std::copy(byteSets[smallestIndex].begin(), byteSets[smallestIndex].end(),
               std::back_inserter(byteVector));
@@ -190,13 +226,18 @@ BasicBlock *SplitSwitchesTransform::switchConvert(
     CaseVector LHSCases, RHSCases;
 
     for (CaseExpr &Case : Cases) {
+
       uint8_t byte = (Case.Val->getZExtValue() >> (smallestIndex * 8)) & 0xFF;
 
       if (byte < pivot) {
+
         LHSCases.push_back(Case);
       } else {
+
         RHSCases.push_back(Case);
+
       }
+
     }
     BasicBlock *LBB, *RBB;
     LBB = switchConvert(LHSCases, bytesChecked, OrigBlock, NewDefault, Val,
@@ -211,26 +252,35 @@ BasicBlock *SplitSwitchesTransform::switchConvert(
                      ConstantInt::get(ByteType, pivot), "byteMatch");
     NewNode->getInstList().push_back(Comp);
     BranchInst::Create(LBB, RBB, Comp, NewNode);
+
   }
 
   return NewNode;
+
 }
 
 bool SplitSwitchesTransform::splitSwitches(Module &M) {
+
   std::vector<SwitchInst *> switches;
 
   /* iterate over all functions, bbs and instruction and add
    * all switches to switches vector for later processing */
   for (auto &F : M) {
+
     for (auto &BB : F) {
+
       SwitchInst *switchInst = nullptr;
 
       if ((switchInst = dyn_cast<SwitchInst>(BB.getTerminator()))) {
+
         if (switchInst->getNumCases() < 1)
           continue;
         switches.push_back(switchInst);
+
       }
+
     }
+
   }
 
   if (!switches.size())
@@ -239,6 +289,7 @@ bool SplitSwitchesTransform::splitSwitches(Module &M) {
          << "\n";
 
   for (auto &SI : switches) {
+
     BasicBlock *CurBlock  = SI->getParent();
     BasicBlock *OrigBlock = CurBlock;
     Function *  F         = CurBlock->getParent();
@@ -252,9 +303,11 @@ bool SplitSwitchesTransform::splitSwitches(Module &M) {
     /* If there is only the default destination or the condition checks 8 bit or
      * less, don't bother with the code below. */
     if (!SI->getNumCases() || bitw <= 8) {
+
       if (getenv("AFL_QUIET") == NULL)
         errs() << "skip trivial switch..\n";
       continue;
+
     }
 
     /* Create a new, empty default block so that the new hierarchy of
@@ -290,39 +343,53 @@ bool SplitSwitchesTransform::splitSwitches(Module &M) {
 
     /* we have to update the phi nodes! */
     for (BasicBlock::iterator I = Default->begin(); I != Default->end(); ++I) {
+
       if (!isa<PHINode>(&*I)) {
+
         continue;
+
       }
       PHINode *PN = cast<PHINode>(I);
 
       /* Only update the first occurrence. */
       unsigned Idx = 0, E = PN->getNumIncomingValues();
       for (; Idx != E; ++Idx) {
+
         if (PN->getIncomingBlock(Idx) == OrigBlock) {
+
           PN->setIncomingBlock(Idx, NewDefault);
           break;
+
         }
+
       }
+
     }
+
   }
 
   verifyModule(M);
   return true;
+
 }
 
 bool SplitSwitchesTransform::runOnModule(Module &M) {
+
   if (getenv("AFL_QUIET") == NULL)
     llvm::errs() << "Running split-switches-pass by laf.intel@gmail.com\n";
   splitSwitches(M);
   verifyModule(M);
 
   return true;
+
 }
 
 static void registerSplitSwitchesTransPass(const PassManagerBuilder &,
                                            legacy::PassManagerBase &PM) {
+
   auto p = new SplitSwitchesTransform();
   PM.add(p);
+
 }
 
 static RegisterStandardPasses RegisterSplitSwitchesTransPass(

@@ -26,40 +26,50 @@
 #include <cstring>
 
 int main() {
+
   char buffer[44] = {/* zero padding */};
   fread(buffer, 1, sizeof(buffer) - 1, stdin);
 
   if (memcmp(&buffer[0], "The quick brown fox ", 20) != 0 ||
       strncmp(&buffer[20], "jumps over ", 11) != 0 ||
       strcmp(&buffer[31], "the lazy dog") != 0) {
+
     return 1;
+
   }
 
   uint64_t x = 0;
   fread(&x, sizeof(x), 1, stdin);
   if (x != 0xCAFEBABECAFEBABE) {
+
     return 2;
+
   }
 
   uint32_t y = 0;
   fread(&y, sizeof(y), 1, stdin);
   if (y != 0xDEADC0DE) {
+
     return 3;
+
   }
 
   uint16_t z = 0;
   fread(&z, sizeof(z), 1, stdin);
 
   switch (z) {
+
     case 0xBEEF:
       break;
 
     default:
       return 4;
+
   }
 
   printf("Puzzle solved, congrats!\n");
   abort();
   return 0;
+
 }
 

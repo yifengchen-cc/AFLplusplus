@@ -96,6 +96,7 @@ static TranslationBlock *tb_find_slow(CPUArchState *, target_ulong,
 /* Data structure passed around by the translate handlers: */
 
 struct afl_tsl {
+
   target_ulong pc;
   target_ulong cs_base;
   uint64_t     flags;
@@ -108,11 +109,13 @@ struct afl_tsl {
 /* Set up SHM region and initialize other stuff. */
 
 static void afl_setup(void) {
+
   char *id_str = getenv(SHM_ENV_VAR), *inst_r = getenv("AFL_INST_RATIO");
 
   int shm_id;
 
   if (inst_r) {
+
     unsigned int r;
 
     r = atoi(inst_r);
@@ -123,9 +126,11 @@ static void afl_setup(void) {
       r = 1;
 
     afl_inst_rms = MAP_SIZE * r / 100;
+
   }
 
   if (id_str) {
+
     shm_id       = atoi(id_str);
     afl_area_ptr = shmat(shm_id, NULL, 0);
 
@@ -137,12 +142,15 @@ static void afl_setup(void) {
 
     if (inst_r)
       afl_area_ptr[0] = 1;
+
   }
+
 }
 
 /* Fork server logic, invoked once we hit first emulated instruction. */
 
 static void afl_forkserver(CPUArchState *env) {
+
   static unsigned char tmp[4];
 
   if (!afl_area_ptr)
@@ -159,6 +167,7 @@ static void afl_forkserver(CPUArchState *env) {
   /* All right, let's await orders... */
 
   while (1) {
+
     pid_t child_pid;
     int   status, t_fd[2];
 
@@ -179,6 +188,7 @@ static void afl_forkserver(CPUArchState *env) {
       exit(4);
 
     if (!child_pid) {
+
       /* Child process. Close descriptors and run free. */
 
       afl_fork_child = 1;
@@ -186,6 +196,7 @@ static void afl_forkserver(CPUArchState *env) {
       close(FORKSRV_FD + 1);
       close(t_fd[0]);
       return;
+
     }
 
     /* Parent. */
@@ -205,12 +216,15 @@ static void afl_forkserver(CPUArchState *env) {
       exit(6);
     if (write(FORKSRV_FD + 1, &status, 4) != 4)
       exit(7);
+
   }
+
 }
 
 /* The equivalent of the tuple logging routine from afl-as.h. */
 
 static inline void afl_maybe_log(unsigned long cur_loc) {
+
   static __thread unsigned long prev_loc;
 
   // DEBUG
@@ -245,6 +259,7 @@ static inline void afl_maybe_log(unsigned long cur_loc) {
 
   afl_area_ptr[cur_loc ^ prev_loc]++;
   prev_loc = cur_loc >> 1;
+
 }
 
 /* This code is invoked whenever QEMU decides that it doesn't have a
@@ -253,6 +268,7 @@ static inline void afl_maybe_log(unsigned long cur_loc) {
    cached copy. */
 
 static void afl_request_tsl(target_ulong pc, target_ulong cb, uint64_t flags) {
+
   struct afl_tsl t;
 
   if (!afl_fork_child)
@@ -264,23 +280,28 @@ static void afl_request_tsl(target_ulong pc, target_ulong cb, uint64_t flags) {
 
   if (write(TSL_FD, &t, sizeof(struct afl_tsl)) != sizeof(struct afl_tsl))
     return;
+
 }
 
 /* This is the other side of the same channel. Since timeouts are handled by
    afl-fuzz simply killing the child, we can just wait until the pipe breaks. */
 
 static void afl_wait_tsl(CPUArchState *env, int fd) {
+
   struct afl_tsl t;
 
   while (1) {
+
     /* Broken pipe means it's time to return to the fork server routine. */
 
     if (read(fd, &t, sizeof(struct afl_tsl)) != sizeof(struct afl_tsl))
       break;
 
     tb_find_slow(env, t.pc, t.cs_base, t.flags);
+
   }
 
   close(fd);
+
 }
 

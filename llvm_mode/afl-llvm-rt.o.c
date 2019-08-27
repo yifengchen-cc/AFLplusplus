@@ -63,6 +63,7 @@ static u8 is_persistent;
 /* SHM setup. */
 
 static void __afl_map_shm(void) {
+
   u8* id_str = getenv(SHM_ENV_VAR);
 
   /* If we're running under AFL, attach to the appropriate region, replacing the
@@ -70,6 +71,7 @@ static void __afl_map_shm(void) {
      hacky .init code to work correctly in projects such as OpenSSL. */
 
   if (id_str) {
+
 #ifdef USEMMAP
     const char*    shm_file_path = id_str;
     int            shm_fd        = -1;
@@ -78,18 +80,22 @@ static void __afl_map_shm(void) {
     /* create the shared memory segment as if it was a file */
     shm_fd = shm_open(shm_file_path, O_RDWR, 0600);
     if (shm_fd == -1) {
+
       printf("shm_open() failed\n");
       exit(1);
+
     }
 
     /* map the shared memory segment to the address space of the process */
     shm_base = mmap(0, MAP_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
     if (shm_base == MAP_FAILED) {
+
       close(shm_fd);
       shm_fd = -1;
 
       printf("mmap() failed\n");
       exit(2);
+
     }
 
     __afl_area_ptr = shm_base;
@@ -108,12 +114,15 @@ static void __afl_map_shm(void) {
        our parent doesn't give up on us. */
 
     __afl_area_ptr[0] = 1;
+
   }
+
 }
 
 /* Fork server logic. */
 
 static void __afl_start_forkserver(void) {
+
   static u8 tmp[4];
   s32       child_pid;
 
@@ -128,6 +137,7 @@ static void __afl_start_forkserver(void) {
     return;
 
   while (1) {
+
     u32 was_killed;
     int status;
 
@@ -141,12 +151,15 @@ static void __afl_start_forkserver(void) {
        process. */
 
     if (child_stopped && was_killed) {
+
       child_stopped = 0;
       if (waitpid(child_pid, &status, 0) < 0)
         _exit(1);
+
     }
 
     if (!child_stopped) {
+
       /* Once woken up, create a clone of our process. */
 
       child_pid = fork();
@@ -156,19 +169,23 @@ static void __afl_start_forkserver(void) {
       /* In child process: close fds, resume execution. */
 
       if (!child_pid) {
+
         signal(SIGCHLD, old_sigchld_handler);
 
         close(FORKSRV_FD);
         close(FORKSRV_FD + 1);
         return;
+
       }
 
     } else {
+
       /* Special handling for persistent mode: if the child is alive but
          currently stopped, simply restart it with SIGCONT. */
 
       kill(child_pid, SIGCONT);
       child_stopped = 0;
+
     }
 
     /* In parent process: write PID to pipe, then wait for child. */
@@ -190,34 +207,43 @@ static void __afl_start_forkserver(void) {
 
     if (write(FORKSRV_FD + 1, &status, 4) != 4)
       _exit(1);
+
   }
+
 }
 
 /* A simplified persistent mode handler, used as explained in README.llvm. */
 
 int __afl_persistent_loop(unsigned int max_cnt) {
+
   static u8  first_pass = 1;
   static u32 cycle_cnt;
 
   if (first_pass) {
+
     /* Make sure that every iteration of __AFL_LOOP() starts with a clean slate.
        On subsequent calls, the parent will take care of that, but on the first
        iteration, it's our job to erase any trace of whatever happened
        before the loop. */
 
     if (is_persistent) {
+
       memset(__afl_area_ptr, 0, MAP_SIZE);
       __afl_area_ptr[0] = 1;
       __afl_prev_loc    = 0;
+
     }
 
     cycle_cnt  = max_cnt;
     first_pass = 0;
     return 1;
+
   }
 
   if (is_persistent) {
+
     if (--cycle_cnt) {
+
       raise(SIGSTOP);
 
       __afl_area_ptr[0] = 1;
@@ -226,39 +252,49 @@ int __afl_persistent_loop(unsigned int max_cnt) {
       return 1;
 
     } else {
+
       /* When exiting __AFL_LOOP(), make sure that the subsequent code that
          follows the loop is not traced. We do that by pivoting back to the
          dummy output region. */
 
       __afl_area_ptr = __afl_area_initial;
+
     }
+
   }
 
   return 0;
+
 }
 
 /* This one can be called from user code when deferred forkserver mode
     is enabled. */
 
 void __afl_manual_init(void) {
+
   static u8 init_done;
 
   if (!init_done) {
+
     __afl_map_shm();
     __afl_start_forkserver();
     init_done = 1;
+
   }
+
 }
 
 /* Proper initialization routine. */
 
 __attribute__((constructor(CONST_PRIO))) void __afl_auto_init(void) {
+
   is_persistent = !!getenv(PERSIST_ENV_VAR);
 
   if (getenv(DEFER_ENV_VAR))
     return;
 
   __afl_manual_init();
+
 }
 
 /* The following stuff deals with supporting -fsanitize-coverage=trace-pc-guard.
@@ -269,7 +305,9 @@ __attribute__((constructor(CONST_PRIO))) void __afl_auto_init(void) {
    edge (as opposed to every basic block). */
 
 void __sanitizer_cov_trace_pc_guard(uint32_t* guard) {
+
   __afl_area_ptr[*guard]++;
+
 }
 
 /* Init callback. Populates instrumentation IDs. Note that we're using
@@ -277,6 +315,7 @@ void __sanitizer_cov_trace_pc_guard(uint32_t* guard) {
    still touch the bitmap, but in a fairly harmless way. */
 
 void __sanitizer_cov_trace_pc_guard_init(uint32_t* start, uint32_t* stop) {
+
   u32 inst_ratio = 100;
   u8* x;
 
@@ -288,8 +327,10 @@ void __sanitizer_cov_trace_pc_guard_init(uint32_t* start, uint32_t* stop) {
     inst_ratio = atoi(x);
 
   if (!inst_ratio || inst_ratio > 100) {
+
     fprintf(stderr, "[-] ERROR: Invalid AFL_INST_RATIO (must be 1-100).\n");
     abort();
+
   }
 
   /* Make sure that the first element in the range is always set - we use that
@@ -299,12 +340,15 @@ void __sanitizer_cov_trace_pc_guard_init(uint32_t* start, uint32_t* stop) {
   *(start++) = R(MAP_SIZE - 1) + 1;
 
   while (start < stop) {
+
     if (R(100) < inst_ratio)
       *start = R(MAP_SIZE - 1) + 1;
     else
       *start = 0;
 
     start++;
+
   }
+
 }
 

@@ -17,6 +17,7 @@
 #endif
 
 void detect_file_args(char** argv, u8* prog_in) {
+
   u32 i = 0;
 #ifdef __GLIBC__
   u8* cwd = getcwd(NULL, 0);                /* non portable glibc extension */
@@ -25,10 +26,13 @@ void detect_file_args(char** argv, u8* prog_in) {
   char* buf;
   long  size = pathconf(".", _PC_PATH_MAX);
   if ((buf = (char*)malloc((size_t)size)) != NULL) {
+
     cwd = getcwd(buf, (size_t)size);                    /* portable version */
   } else {
+
     PFATAL("getcwd() failed");
     cwd = 0;                                          /* for dumb compilers */
+
   }
 #endif
 
@@ -36,9 +40,11 @@ void detect_file_args(char** argv, u8* prog_in) {
     PFATAL("getcwd() failed");
 
   while (argv[i]) {
+
     u8* aa_loc = strstr(argv[i], "@@");
 
     if (aa_loc) {
+
       u8 *aa_subst, *n_arg;
 
       if (!prog_in)
@@ -60,11 +66,14 @@ void detect_file_args(char** argv, u8* prog_in) {
 
       if (prog_in[0] != '/')
         ck_free(aa_subst);
+
     }
 
     i++;
+
   }
 
   free(cwd);                                                 /* not tracked */
+
 }
 

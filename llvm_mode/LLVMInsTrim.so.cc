@@ -37,7 +37,9 @@ static cl::opt<bool> LoopHeadOpt("loophead", cl::desc("LoopHead"),
                                  cl::init(false));
 
 namespace {
+
 struct InsTrim : public ModulePass {
+
  protected:
   std::list<std::string> myWhitelist;
 
@@ -46,14 +48,18 @@ struct InsTrim : public ModulePass {
   int          total_instr = 0;
 
   unsigned int genLabel() {
+
     return generator() & (MAP_SIZE - 1);
+
   }
 
  public:
   static char ID;
   InsTrim() : ModulePass(ID), generator(0) {
+
     char *instWhiteListFilename = getenv("AFL_LLVM_WHITELIST");
     if (instWhiteListFilename) {
+
       std::string   line;
       std::ifstream fileStream;
       fileStream.open(instWhiteListFilename);
@@ -61,14 +67,20 @@ struct InsTrim : public ModulePass {
         report_fatal_error("Unable to open AFL_LLVM_WHITELIST");
       getline(fileStream, line);
       while (fileStream) {
+
         myWhitelist.push_back(line);
         getline(fileStream, line);
+
       }
+
     }
+
   }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
+
     AU.addRequired<DominatorTreeWrapperPass>();
+
   }
 
 #if LLVM_VERSION_MAJOR < 4
@@ -77,13 +89,17 @@ struct InsTrim : public ModulePass {
   StringRef
 #endif
   getPassName() const override {
+
     return "InstTrim Instrumentation";
+
   }
 
   bool runOnModule(Module &M) override {
+
     char be_quiet = 0;
 
     if (isatty(2) && !getenv("AFL_QUIET")) {
+
       SAYF(cCYA "LLVMInsTrim" VERSION cRST " by csienslab\n");
     } else
       be_quiet = 1;
@@ -96,7 +112,9 @@ struct InsTrim : public ModulePass {
 
     if (getenv("AFL_LLVM_INSTRIM_LOOPHEAD") != NULL ||
         getenv("LOOPHEAD") != NULL) {
+
       LoopHeadOpt = true;
+
     }
 
     // this is our default
@@ -106,9 +124,11 @@ struct InsTrim : public ModulePass {
           char* inst_ratio_str = getenv("AFL_INST_RATIO");
           unsigned int inst_ratio = 100;
           if (inst_ratio_str) {
+
            if (sscanf(inst_ratio_str, "%u", &inst_ratio) != 1 || !inst_ratio ||
        inst_ratio > 100) FATAL("Bad value of AFL_INST_RATIO (must be between 1
        and 100)");
+
           }
     */
 
@@ -128,82 +148,111 @@ struct InsTrim : public ModulePass {
     u64 total_hs = 0;
 
     for (Function &F : M) {
+
       if (!F.size()) {
+
         continue;
+
       }
 
       if (!myWhitelist.empty()) {
+
         bool      instrumentBlock = false;
         DebugLoc  Loc;
         StringRef instFilename;
 
         for (auto &BB : F) {
+
           BasicBlock::iterator IP = BB.getFirstInsertionPt();
           IRBuilder<>          IRB(&(*IP));
           if (!Loc)
             Loc = IP->getDebugLoc();
+
         }
 
         if (Loc) {
+
           DILocation *cDILoc = dyn_cast<DILocation>(Loc.getAsMDNode());
 
           unsigned int instLine = cDILoc->getLine();
           instFilename          = cDILoc->getFilename();
 
           if (instFilename.str().empty()) {
+
             /* If the original location is empty, try using the inlined location
              */
             DILocation *oDILoc = cDILoc->getInlinedAt();
             if (oDILoc) {
+
               instFilename = oDILoc->getFilename();
               instLine     = oDILoc->getLine();
+
             }
+
           }
 
           /* Continue only if we know where we actually are */
           if (!instFilename.str().empty()) {
+
             for (std::list<std::string>::iterator it = myWhitelist.begin();
                  it != myWhitelist.end(); ++it) {
+
               if (instFilename.str().length() >= it->length()) {
+
                 if (instFilename.str().compare(
                         instFilename.str().length() - it->length(),
                         it->length(), *it) == 0) {
+
                   instrumentBlock = true;
                   break;
+
                 }
+
               }
+
             }
+
           }
+
         }
 
         /* Either we couldn't figure out our location or the location is
          * not whitelisted, so we skip instrumentation. */
         if (!instrumentBlock) {
+
           if (!instFilename.str().empty())
             SAYF(cYEL "[!] " cBRI "Not in whitelist, skipping %s ...\n",
                  instFilename.str().c_str());
           else
             SAYF(cYEL "[!] " cBRI "No filename information found, skipping it");
           continue;
+
         }
+
       }
 
       std::unordered_set<BasicBlock *> MS;
       if (!MarkSetOpt) {
+
         for (auto &BB : F) {
+
           MS.insert(&BB);
+
         }
         total_rs += F.size();
       } else {
+
         auto Result = markNodes(&F);
         auto RS     = Result.first;
         auto HS     = Result.second;
 
         MS.insert(RS.begin(), RS.end());
         if (!LoopHeadOpt) {
+
           MS.insert(HS.begin(), HS.end());
           total_rs += MS.size();
         } else {
+
           DenseSet<std::pair<BasicBlock *, BasicBlock *>> EdgeSet;
           DominatorTreeWrapperPass *                      DTWP =
               &getAnalysis<DominatorTreeWrapperPass>(F);
@@ -213,22 +262,31 @@ struct InsTrim : public ModulePass {
           total_hs += HS.size();
 
           for (BasicBlock *BB : HS) {
+
             bool Inserted = false;
             for (auto BI = pred_begin(BB), BE = pred_end(BB); BI != BE; ++BI) {
+
               auto Edge = BasicBlockEdge(*BI, BB);
               if (Edge.isSingleEdge() && DT->dominates(Edge, BB)) {
+
                 EdgeSet.insert({*BI, BB});
                 Inserted = true;
                 break;
+
               }
+
             }
             if (!Inserted) {
+
               MS.insert(BB);
               total_rs += 1;
               total_hs -= 1;
+
             }
+
           }
           for (auto I = EdgeSet.begin(), E = EdgeSet.end(); I != E; ++I) {
+
             auto PredBB = I->first;
             auto SuccBB = I->second;
             auto NewBB =
@@ -238,45 +296,62 @@ struct InsTrim : public ModulePass {
 #endif
                                        false);
             MS.insert(NewBB);
+
           }
+
         }
 
         auto *EBB = &F.getEntryBlock();
         if (succ_begin(EBB) == succ_end(EBB)) {
+
           MS.insert(EBB);
           total_rs += 1;
+
         }
 
         for (BasicBlock &BB : F) {
+
           if (MS.find(&BB) == MS.end()) {
+
             continue;
+
           }
           IRBuilder<> IRB(&*BB.getFirstInsertionPt());
           IRB.CreateStore(ConstantInt::get(Int32Ty, genLabel()), OldPrev);
+
         }
+
       }
 
       for (BasicBlock &BB : F) {
+
         auto PI = pred_begin(&BB);
         auto PE = pred_end(&BB);
         if (MarkSetOpt && MS.find(&BB) == MS.end()) {
+
           continue;
+
         }
 
         IRBuilder<> IRB(&*BB.getFirstInsertionPt());
         Value *     L = NULL;
         if (PI == PE) {
+
           L = ConstantInt::get(Int32Ty, genLabel());
         } else {
+
           auto *PN = PHINode::Create(Int32Ty, 0, "", &*BB.begin());
           DenseMap<BasicBlock *, unsigned> PredMap;
           for (auto PI = pred_begin(&BB), PE = pred_end(&BB); PI != PE; ++PI) {
+
             BasicBlock *PBB   = *PI;
             auto        It    = PredMap.insert({PBB, genLabel()});
             unsigned    Label = It.first->second;
             PN->addIncoming(ConstantInt::get(Int32Ty, Label), PBB);
+
           }
           L = PN;
+
         }
 
         /* Load prev_loc */
@@ -305,6 +380,7 @@ struct InsTrim : public ModulePass {
                 // then fixed
 #endif
         {
+
           /* hexcoder: Realize a counter that skips zero during overflow.
            * Once this counter reaches its maximum value, it next increments to
            * 1
@@ -318,6 +394,7 @@ struct InsTrim : public ModulePass {
           auto cf    = IRB.CreateICmpEQ(Incr, ConstantInt::get(Int8Ty, 0));
           auto carry = IRB.CreateZExt(cf, Int8Ty);
           Incr       = IRB.CreateAdd(Incr, carry);
+
         }
 
         IRB.CreateStore(Incr, MapPtrIdx)
@@ -331,7 +408,9 @@ struct InsTrim : public ModulePass {
         */
 
         total_instr++;
+
       }
+
     }
 
     OKF("Instrumented %u locations (%llu, %llu) (%s mode)\n" /*", ratio
@@ -344,6 +423,7 @@ struct InsTrim : public ModulePass {
                    ? "ASAN/MSAN"
                    : "non-hardened") /*, inst_ratio*/);
     return false;
+
   }
 };  // end of struct InsTrim
 }  // end of anonymous namespace
@@ -352,7 +432,9 @@ char InsTrim::ID = 0;
 
 static void registerAFLPass(const PassManagerBuilder &,
                             legacy::PassManagerBase &PM) {
+
   PM.add(new InsTrim());
+
 }
 
 static RegisterStandardPasses RegisterAFLPass(
