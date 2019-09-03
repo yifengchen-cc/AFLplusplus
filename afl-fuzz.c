@@ -84,6 +84,10 @@
 #  define EXP_ST static
 #endif /* ^AFL_LIB */
 
+/*extras mode globals*/
+EXP_ST u8 extras_mode;	/*running in extras mode?*/
+
+
 /* MOpt:
    Lots of globals, but mostly for the status UI and other things where it
    really makes no sense to haul them around as function parameters. */
@@ -2127,6 +2131,7 @@ static inline u8 memcmp_nocase(u8* m1, u8* m2, u32 len) {
 static void maybe_add_auto(u8* mem, u32 len) {
 
   u32 i;
+  if(extras_mode)return;//skip if run in extras mode
 
   /* Allow users to specify that they don't want auto dictionaries. */
 
@@ -5517,6 +5522,10 @@ static u8 fuzz_one_original(char** argv) {
   u8  a_collect[MAX_AUTO_EXTRA];
   u32 a_len = 0;
 
+  u8* uneff_bytemap=0;
+  s32 k;
+  
+
 #ifdef IGNORE_FINDS
 
   /* In IGNORE_FINDS mode, skip any entries that weren't in the
@@ -5705,6 +5714,26 @@ static u8 fuzz_one_original(char** argv) {
 
   doing_det = 1;
 
+
+
+  /*Init uneff_bytemap,when match input extras uneff_bytemap set 1 */
+  if(extras_mode){
+    uneff_bytemap = ck_alloc(len);
+
+    for(i=0;i<len;i++){
+      for(j=0;j<extras_cnt;j++){
+        if(!memcmp_nocase(extras[j].data,out_buf+i,extras[j].len) && i+extras[j].len<len){
+          for(k=0;k<extras[j].len;k++){
+            uneff_bytemap[i+k]=1;
+          }
+          i=i+k-1;
+          break;
+        }   
+      }
+    } 
+  }
+  
+
   /*********************************************
    * SIMPLE BITFLIP (+dictionary construction) *
    *********************************************/
@@ -5730,6 +5759,12 @@ static u8 fuzz_one_original(char** argv) {
   for (stage_cur = 0; stage_cur < stage_max; ++stage_cur) {
 
     stage_cur_byte = stage_cur >> 3;
+    
+	/*Skip when match extras*/
+    if(extras_mode && uneff_bytemap[stage_cur_byte]){
+      stage_cur+=7;
+      continue;
+    }
 
     FLIP_BIT(out_buf, stage_cur);
 
@@ -5822,6 +5857,11 @@ static u8 fuzz_one_original(char** argv) {
   for (stage_cur = 0; stage_cur < stage_max; ++stage_cur) {
 
     stage_cur_byte = stage_cur >> 3;
+    
+    if(extras_mode && uneff_bytemap[stage_cur_byte]){
+      stage_cur+=7;
+      continue;
+    }
 
     FLIP_BIT(out_buf, stage_cur);
     FLIP_BIT(out_buf, stage_cur + 1);
@@ -5850,6 +5890,11 @@ static u8 fuzz_one_original(char** argv) {
 
     stage_cur_byte = stage_cur >> 3;
 
+    if(extras_mode && uneff_bytemap[stage_cur_byte]){
+      stage_cur+=7;
+      continue;    
+    }
+
     FLIP_BIT(out_buf, stage_cur);
     FLIP_BIT(out_buf, stage_cur + 1);
     FLIP_BIT(out_buf, stage_cur + 2);
@@ -5869,6 +5914,7 @@ static u8 fuzz_one_original(char** argv) {
   stage_finds[STAGE_FLIP4]  += new_hit_cnt - orig_hit_cnt;
   stage_cycles[STAGE_FLIP4] += stage_max;
 
+  
   /* Effector map setup. These macros calculate:
 
      EFF_APOS      - position of a particular file offset in the map.
@@ -11355,6 +11401,7 @@ static void usage(u8* argv0) {
        "  -d            - quick & dirty mode (skips deterministic steps)\n"
        "  -n            - fuzz without instrumentation (dumb mode)\n"
        "  -x dir        - optional fuzzer dictionary (see README)\n\n"
+       "  -X dir        - an upgrade parameters for -x (use extras mode and set fuzzer dictionary)\n\n"
 
        "Testing settings:\n"
        "  -s seed       - use a fixed seed for the RNG\n"
@@ -12028,7 +12075,7 @@ int main(int argc, char** argv) {
   gettimeofday(&tv, &tz);
   init_seed = tv.tv_sec ^ tv.tv_usec ^ getpid();
 
-  while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCB:S:M:x:QUe:p:s:V:E:L:")) > 0)
+  while ((opt = getopt(argc, argv, "+i:o:f:m:t:T:dnCB:S:M:x:X:QUe:p:s:V:E:L:")) > 0)
 
     switch (opt) {
 
@@ -12119,6 +12166,13 @@ int main(int argc, char** argv) {
 
         if (extras_dir) FATAL("Multiple -x options not supported");
         extras_dir = optarg;
+        break;
+
+      case 'X': /* dictionary */
+
+        if (extras_dir) FATAL("Multiple -X options not supported,cannot use with -x at the same time");
+        extras_dir = optarg;
+		extras_mode=1;
         break;
 
       case 't': { /* timeout */
@@ -12540,6 +12594,7 @@ int main(int argc, char** argv) {
   // real start time, we reset, so this works correctly with -V
   start_time = get_cur_time();
 
+  
   while (1) {
 
     u8 skipped_fuzz;
@@ -12553,7 +12608,7 @@ int main(int argc, char** argv) {
       cur_skipped_paths = 0;
       queue_cur         = queue;
 
-      while (seek_to) {
+     while (seek_to) {
         ++current_entry;
         --seek_to;
         queue_cur = queue_cur->next;
