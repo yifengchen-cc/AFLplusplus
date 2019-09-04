@@ -109,18 +109,22 @@ int key_puppet = 0;
 int key_module = 0;
 double w_init = 0.9;
 double w_end = 0.3;
-double w_now;
+double w_now;					/*inertia weight*/
 int g_now = 0;
 int g_max = 5000;
 #define operator_num 16
-#define swarm_num 5
+#define swarm_num 5				/* 5 stage:	bit flips,byte flips,arithmetics,known ints,dictionary */
 #define period_core  500000
 u64 tmp_core_time = 0;
 int swarm_now = 0 ;
 double x_now[swarm_num][operator_num],
-       L_best[swarm_num][operator_num],
+       L_best[swarm_num][operator_num], 		/*Local Best Position: the position of the particle where
+												the corresponding operator yields the most interesting
+												test cases (given the same amount of invocations).*/
        eff_best[swarm_num][operator_num],
-       G_best[operator_num],
+       G_best[operator_num],					/*Global Best Position: there is no sole global best position 
+												fit for all particles. Instead, different particles have
+												different global best positions (in different spaces) here.*/
        v_now[swarm_num][operator_num],
        probability_now[swarm_num][operator_num],
        swarm_fitness[swarm_num];
@@ -12339,11 +12343,21 @@ int main(int argc, char** argv) {
 				for (i = 0; i < operator_num; ++i) {
 					stage_finds_puppet[tmp_swarm][i] = 0;
 					probability_now[tmp_swarm][i] = 0.0;
+					
+					/*sets the initial location x_now of each particle in each swarm with a 
+					random value, and normalizes the sum of x_now of all the particles in one swarm to 1*/
 					x_now[tmp_swarm][i] = ((double)(random() % 7000)*0.0001 + 0.1);
 					total_puppet_temp += x_now[tmp_swarm][i];
-					v_now[tmp_swarm][i] = 0.1;
+					
+					/*sets the displacement of particle movement v_now of each particle in each swarm to 0.1*/
+					v_now[tmp_swarm][i] = 0.1; 
+					
+					/*sets the initial local best position L_best of each particle in each swarm to 0.5*/
 					L_best[tmp_swarm][i] = 0.5;
+					
+					/*sets the initial global best position G_best of each particle across swarms to 0.5*/
 					G_best[i] = 0.5;
+
 					eff_best[tmp_swarm][i] = 0.0;
 
 				}
@@ -12358,6 +12372,8 @@ int main(int argc, char** argv) {
 
 				for (i = 0; i < operator_num; ++i) {
 					probability_now[tmp_swarm][i] = 0.0;
+					
+					/* PSO algorithm*/
 					v_now[tmp_swarm][i] = w_now * v_now[tmp_swarm][i] + RAND_C * (L_best[tmp_swarm][i] - x_now[tmp_swarm][i]) + RAND_C * (G_best[i] - x_now[tmp_swarm][i]);
 
 					x_now[tmp_swarm][i] += v_now[tmp_swarm][i];
